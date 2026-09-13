@@ -1,7 +1,8 @@
 import { log } from "./log.js";
 import { initConfig, resetConfig, saveConfig, updateSettingsInUI, refreshSaveState } from "./config.js";
-import { resetGrid, getGridDict, generateGrid, drawGrid, ledClass, devicePlayedColor, COLOR_FROM_DEVICE } from "./grid.js";
-import { ROWOFFSET_OCTAVECUSTOM, ROWOFFSET_GUITAR } from "./layout.js";
+import { resetGrid, getGridDict, getLitDict, getSideDicts, generateGrid, drawGrid, ledClass, devicePlayedColor, COLOR_FROM_DEVICE } from "./grid.js";
+import { ROWOFFSET_OCTAVECUSTOM, ROWOFFSET_GUITAR, splitNoteRanges, LEFT, RIGHT } from "./layout.js";
+import { assignSides } from "./parts.js";
 import { registerPlayerEvents, refreshInstrumentLights } from "./player.js";
 import { measureNoteTiming, calculateStatistics, logGuideNoteTiming } from "./statistics.js";
 import { createMidiInputRecording, exportMidiInputRecording } from "./recorder.js";
@@ -86,8 +87,73 @@ async function init() {
 async function setupGrid() {
   resetGrid()
   ext.grid = generateGrid(ext.config, ext.deviceLayout)
+  // Every pad that sends a note, which is what a note can be played on
   ext.gridDict = getGridDict(ext.grid)
+  // The pads to light for it, which is a subset when one pad per note is set
+  ext.litDict = getLitDict(ext.grid, ext.config, ext.deviceLayout)
+  ext.sideDicts = getSideDicts(ext.grid, ext.deviceLayout)
+  refreshPartSides()
   drawGrid(ext.grid)
+}
+
+/**
+ * Work out which side of the split each part of the loaded file belongs to, so a note
+ * lights under the hand that plays it rather than where its pitch falls. Runs again
+ * whenever the layout or the file changes, since both decide the answer.
+ */
+export function refreshPartSides() {
+  ext.partSides = null
+
+  if (!ext.config.partRouting || !ext.parts) {
+    return // switched off, or no file to read parts from
+  }
+  const { key, parts } = ext.parts
+
+  if (!ext.deviceLayout?.splitActive) {
+    log.warn(`Parts are not routed to hands: the LinnStrument is not split, so there is only one place to light a note.`)
+    return
+  }
+
+  const ranges = splitNoteRanges(ext.grid, ext.deviceLayout)
+  const sides = assignSides(parts, ranges)
+  if (!sides.size) {
+    log.warn(`Parts are not routed to hands: this file has nothing to tell them apart by, only one ${key}.`)
+    return
+  }
+  ext.partSides = sides
+
+  // Named with their ranges, which is what the hands were decided from
+  const named = (side) => parts
+    .filter((part) => sides.get(part.id) === side)
+    .map((part) => `${key} ${part.id} plays ${part.low}-${part.high}`)
+    .join(', ')
+  const half = (side) => `${side === LEFT ? 'left' : 'right'} hand (pads reach ${ranges[side].low}-${ranges[side].high})`
+  log.info(`Parts routed by ${key} — ${half(LEFT)}: ${named(LEFT)}; ${half(RIGHT)}: ${named(RIGHT)}.`)
+
+  // A part can reach past the half it was given, and those notes have nowhere to go
+  // but the other hand. Worth warning about: it looks exactly like a misrouted note.
+  for (const part of parts) {
+    const side = sides.get(part.id)
+    const range = ranges[side]
+    const outside = []
+    if (part.low < range.low) outside.push(`below ${range.low}`)
+    if (part.high > range.high) outside.push(`above ${range.high}`)
+    if (outside.length) {
+      log.warn(`${key} ${part.id} plays ${part.low}-${part.high}, which reaches ${outside.join(' and ')}, ` +
+        `past what the ${side === LEFT ? 'left' : 'right'} half can play. Those notes light on the other hand instead.`)
+    }
+  }
+}
+
+/** The pads to light for a note, under a given side's hand where one is known */
+export function litPads(noteNumber, side = null) {
+  if (side != null && ext.sideDicts) {
+    const pads = ext.sideDicts[side][noteNumber]
+    if (pads) {
+      return pads
+    }
+  }
+  return ext.litDict[noteNumber]
 }
 
 /**
@@ -359,9 +425,9 @@ async function registerMidiEvents() {
 /**
  * Handle an incoming Light Guide note-on, from a MIDI port or the file player.
  */
-export async function guideNoteOn(noteNumber, channel = 1, velocity = 100, color = ext.config.guideHighlightColor) {
-  highlightInstrument(noteNumber, color)
-  highlightVisualization(noteNumber, color, 'guide', true)
+export async function guideNoteOn(noteNumber, channel = 1, velocity = 100, color = ext.config.guideHighlightColor, side = null) {
+  highlightInstrument(noteNumber, color, side)
+  highlightVisualization(noteNumber, color, 'guide', true, side)
 
   if (ext.config.guideNoteStatistics) {
     const timing = await measureNoteTiming(noteNumber)
@@ -373,26 +439,25 @@ export async function guideNoteOn(noteNumber, channel = 1, velocity = 100, color
 }
 
 /** Handle an incoming Light Guide note-off. */
-export function guideNoteOff(noteNumber, channel = 1, velocity = 0) {
-  highlightInstrument(noteNumber, 0)
-  highlightVisualization(noteNumber, 0, 'guide')
+export function guideNoteOff(noteNumber, channel = 1, velocity = 0, side = null) {
+  highlightInstrument(noteNumber, 0, side)
+  highlightVisualization(noteNumber, 0, 'guide', false, side)
 
   const jzzMsg = JZZ.MIDI.noteOff(channel, noteNumber, velocity)
   ext.recording.guideInput.track.add(ext.recording.tick, jzzMsg);
 }
 
 /**
- * Change the color of a guide note that is already lit. The note itself does not
- * change, so this is deliberately not a note off / note on pair: it must not be
- * measured or recorded again.
+ * Change the color of a guide note that is already lit. Deliberately not a note off /
+ * note on pair: the note has not changed, so it must not be measured or recorded again.
  */
-export function recolorGuideNote(noteNumber, color) {
-  highlightInstrument(noteNumber, color)
-  highlightVisualization(noteNumber, color, 'guide', true)
+export function recolorGuideNote(noteNumber, color, side = null) {
+  highlightInstrument(noteNumber, color, side)
+  highlightVisualization(noteNumber, color, 'guide', true, side)
 }
 
-export function highlightInstrument(noteNumber, color) {
-  const noteCoords = ext.gridDict[noteNumber]
+export function highlightInstrument(noteNumber, color, side = null) {
+  const noteCoords = litPads(noteNumber, side)
   if (noteCoords) {
     for (const noteCoord of noteCoords) {
       highlightInstrumentXY(noteCoord[0], noteCoord[1], color)
@@ -417,9 +482,11 @@ export function highlightInstrumentXY(x, y, color) {
 /**
  * Highlight pads on web visualization by note number and color
  */
-export function highlightVisualization(noteNumber, color, type = "played", big = false) {
+export function highlightVisualization(noteNumber, color, type = "played", big = false, side = null) {
 
-  const noteCoords = ext.gridDict[noteNumber]
+  // The visualization stands in for the instrument, so it lights the same pads. A
+  // played note has no side: the instrument reports the note, not the pad it came from.
+  const noteCoords = litPads(noteNumber, side)
   if (noteCoords) {
     for (const noteCoord of noteCoords) {
       const x = noteCoord[0]

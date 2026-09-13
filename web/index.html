@@ -112,6 +112,19 @@
                   <option value="1">On</option>
                 </select>
 
+                <label for="duplicateNotePads" class="form-label">Duplicate Note Pads</label>
+                <select id="duplicateNotePads" class="form-select" data-bs-toggle="tooltip" data-bs-placement="right" title="The same note sits on several pads at once, and lighting all of them makes a chord hard to read. The other settings light only the pad nearest the middle, either one per split or one overall; any pad still plays the note.">
+                  <option value="0">Light all of them</option>
+                  <option value="1">Middle one, each side</option>
+                  <option value="2">Middle one, one side</option>
+                </select>
+
+                <label for="partRouting" class="form-label">Route Parts To Hands</label>
+                <select id="partRouting" class="form-select" data-bs-toggle="tooltip" data-bs-placement="right" title="Light each note under the hand that plays its part, read from the file's tracks or channels rather than from pitch, so a melody dipping below the accompaniment stays in the right hand. Needs a split, and a file that keeps its parts apart.">
+                  <option value="0">Off</option>
+                  <option value="1">On</option>
+                </select>
+
                 <label for="guideHighlightColor" class="form-label">Light Guide Note Color</label>
                 <select id="guideHighlightColor" class="form-select" data-bs-toggle="tooltip" data-bs-placement="right" title="Color for Light Guide highlights on LinnStrument and visualization.">
                   <option value="7">Off</option>

@@ -190,3 +190,111 @@ export function gridToDict(grid) {
   })
   return dict
 }
+
+/** `prefer` value asking for a single pad without naming a side */
+export const PREFER_DEEPEST = 'deepest'
+
+/**
+ * note -> [[x, y], ...], the pad to light for that note, one per split.
+ *
+ * A pitch sits on several pads at once, so a chord can light pads spread right
+ * across the surface. Keeping only the pad nearest the middle of each split
+ * leaves one place to put the finger, near where the hands already are.
+ *
+ * `prefer` cuts that back to a single pad: PREFER_DEEPEST picks the side the note
+ * sits further inside, and LEFT or RIGHT ask for that side, which is how a note is
+ * put under the hand its part belongs to. A note the wanted side cannot play falls
+ * back to the side that can.
+ */
+export function gridToCenterDict(grid, layout = null, prefer = null) {
+  const regions = padRegions(grid, layout)
+  /** note -> region -> the nearest pad found for it so far */
+  const nearest = {}
+
+  grid.forEach((column, x) => {
+    const region = regions.find((r) => x >= r.from && x <= r.to) ?? regions[0]
+    column.forEach((note, y) => {
+      if (note < 0) return
+      const distance = (x - region.cx) ** 2 + (y - region.cy) ** 2
+      const perRegion = (nearest[note] ??= new Map())
+      const chosen = perRegion.get(region)
+      if (!chosen || distance < chosen.distance) {
+        perRegion.set(region, { distance, pad: [x, y] })
+      }
+    })
+  })
+
+  const dict = {}
+  for (const note of Object.keys(nearest)) {
+    dict[note] = preferredPads(Number(note), [...nearest[note]], prefer)
+  }
+  return dict
+}
+
+/** The pads of `chosen` that `prefer` asks for, as [[x, y], ...] */
+function preferredPads(note, chosen, prefer) {
+  if (prefer === null || chosen.length === 1) {
+    return chosen.map(([, candidate]) => candidate.pad)
+  }
+  if (prefer !== PREFER_DEEPEST) {
+    const wanted = chosen.find(([region]) => region.side === prefer)
+    if (wanted) {
+      return [wanted[1].pad]
+    }
+  }
+  return [deepestInRange(note, chosen)]
+}
+
+/** The lowest and highest note each side of the surface plays, in side order */
+export function splitNoteRanges(grid, layout = null) {
+  return padRegions(grid, layout).map(({ lowNote, highNote }) => ({ low: lowNote, high: highNote }))
+}
+
+/**
+ * Of the pads a note has on either side of a split, the one whose side the note
+ * sits furthest inside, in semitones from the ends of that side's range. Where the
+ * sides overlap this splits it down the middle, so each hand keeps the notes that
+ * fall comfortably within its own range. Ties keep the left split.
+ */
+function deepestInRange(note, chosen) {
+  let best = null
+  for (const [region, candidate] of chosen) {
+    const depth = Math.min(note - region.lowNote, region.highNote - note)
+    if (!best || depth > best.depth) {
+      best = { depth, pad: candidate.pad }
+    }
+  }
+  return best.pad
+}
+
+/**
+ * The areas a pad can be nearest the middle of: one per split while the surface is
+ * split, otherwise the surface itself. Column ranges are converted from firmware
+ * columns to x. Each area carries the pitches it plays, which is what deepestInRange
+ * measures against.
+ */
+function padRegions(grid, layout) {
+  const rows = grid[0]?.length ?? 8
+  // A layout read from the LinnStrument carries no `columns`; that is the app's
+  // own setting, so the count comes from the grid.
+  const surface = layout && { ...layout, columns: grid.length }
+  const ranges = surface && surface.splitActive
+    ? [splitBoundaries(surface, LEFT), splitBoundaries(surface, RIGHT)]
+    : [[1, grid.length + 1]]
+
+  return ranges.map(([lowCol, highCol], side) => {
+    const from = lowCol - 1
+    const to = highCol - 2
+    // An unpitched split (faders, strum, the sequencer) has no notes and no range
+    const notes = grid.slice(from, to + 1).flat().filter((note) => note >= 0)
+    return {
+      side, // LEFT or RIGHT, or LEFT alone when the surface is not split
+      from,
+      to,
+      cx: (from + to) / 2,
+      cy: (rows - 1) / 2,
+      lowNote: Math.min(...notes),
+      highNote: Math.max(...notes),
+    }
+  })
+}

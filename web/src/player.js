@@ -8,8 +8,9 @@
  * time and waits until that chord has actually been played (see buildSteps).
  */
 
-import { ext, guideNoteOn, guideNoteOff, highlightInstrument, highlightVisualization, recolorGuideNote } from "./main.js"
+import { ext, guideNoteOn, guideNoteOff, highlightInstrument, highlightVisualization, recolorGuideNote, refreshPartSides, litPads } from "./main.js"
 import { COLOR_OFF } from "./grid.js"
+import { collectParts } from "./parts.js"
 import { log } from "./log.js"
 
 const DRUM_CHANNEL = 9 // GM channel 10, zero-based
@@ -37,9 +38,9 @@ const SPEED_KEY = 'playerSpeed'
 
 let player = null
 let speedIndex = FULL_SPEED
-/** Notes currently lit by the player as guide notes, note -> LinnStrument color */
+/** Notes currently lit as guide notes, note -> { color, side } of the pad lit for it */
 const activeNotes = new Map()
-/** Notes lit only as a look ahead to the next step, note -> LinnStrument color */
+/** Notes lit only as a look ahead to the next step, note -> { color, side } */
 const previewNotes = new Map()
 
 /** Chords to step through, rebuilt for each loaded file */
@@ -109,6 +110,8 @@ export function registerPlayerEvents() {
     } catch (err) {
       player = null
       steps = []
+      ext.parts = null
+      refreshPartSides()
       playEl.disabled = true
       stopEl.disabled = true
       setFileLabel('Choose File')
@@ -142,6 +145,10 @@ function loadPlayer(arrayBuffer) {
   const smf = new JZZ.MIDI.SMF(toBinaryString(arrayBuffer))
   const p = smf.player()
 
+  // Which hand plays what, before anything is built from the events or played
+  ext.parts = collectParts(noteOnsOf(p._data))
+  refreshPartSides()
+
   // Built before anything plays, from the same event list the player runs on
   steps = buildSteps(p._data, p.ppqn)
 
@@ -156,13 +163,34 @@ function loadPlayer(arrayBuffer) {
     const velocity = msg[2]
 
     if (status === 0x90 && velocity > 0) {
-      lightOn(note, channel + 1, velocity)
+      lightOn(note, channel + 1, velocity, ext.config.guideHighlightColor, sideOf(partOf(msg)))
     } else if (status === 0x80 || (status === 0x90 && velocity === 0)) {
       lightOff(note, channel + 1, velocity)
     }
   })
 
   return p
+}
+
+/** Every note the file starts, with what it takes to tell its parts apart */
+function noteOnsOf(data) {
+  const noteOns = []
+  for (const msg of data) {
+    if ((msg[0] & 0xf0) !== 0x90 || msg[2] === 0) continue
+    if ((msg[0] & 0x0f) === DRUM_CHANNEL) continue
+    noteOns.push({ track: msg.track, channel: msg[0] & 0x0f, note: msg[1], tick: msg.tt })
+  }
+  return noteOns
+}
+
+/** The part a file event belongs to, under whichever grouping this file supports */
+function partOf(msg) {
+  return ext.parts?.key === 'track' ? msg.track : msg[0] & 0x0f
+}
+
+/** The side that part is played on, or null when the parts are not routed */
+function sideOf(part) {
+  return ext.partSides?.get(part) ?? null
 }
 
 /** Stop whichever mode is running and clear whatever it left lit */
@@ -199,7 +227,7 @@ function buildSteps(data, ppqn) {
     const status = msg[0] & 0xf0
     if ((msg[0] & 0x0f) === DRUM_CHANNEL) continue
     if (status === 0x90 && msg[2] > 0) {
-      events.push({ tick: msg.tt, note: msg[1], on: true })
+      events.push({ tick: msg.tt, note: msg[1], on: true, part: partOf(msg) })
     } else if (status === 0x80 || (status === 0x90 && msg[2] === 0)) {
       events.push({ tick: msg.tt, note: msg[1], on: false })
     }
@@ -208,7 +236,7 @@ function buildSteps(data, ppqn) {
   events.sort((a, b) => a.tick - b.tick || (a.on ? 1 : 0) - (b.on ? 1 : 0))
 
   const result = []
-  /** note -> number of overlapping note ons, so a doubled note is not dropped early */
+  /** note -> { count, part }: overlapping note ons, so a doubled note is not dropped early */
   const sounding = new Map()
   let i = 0
 
@@ -222,12 +250,13 @@ function buildSteps(data, ppqn) {
     while (i < events.length && events[i].tick - stepTick <= chordTicks) {
       const event = events[i++]
       if (event.on) {
-        sounding.set(event.note, (sounding.get(event.note) ?? 0) + 1)
+        // The part of the note starting now, which is the hand it is to be played with
+        sounding.set(event.note, { count: (sounding.get(event.note)?.count ?? 0) + 1, part: event.part })
         onsets.add(event.note)
       } else {
-        const remaining = (sounding.get(event.note) ?? 0) - 1
-        if (remaining > 0) {
-          sounding.set(event.note, remaining)
+        const held = sounding.get(event.note)
+        if (held && held.count > 1) {
+          sounding.set(event.note, { ...held, count: held.count - 1 })
         } else {
           sounding.delete(event.note)
         }
@@ -241,6 +270,7 @@ function buildSteps(data, ppqn) {
       result.push({
         notes: [...sounding.keys()],
         onsets: [...onsets].filter((note) => sounding.has(note)),
+        parts: new Map([...sounding].map(([note, { part }]) => [note, part])),
       })
     }
   }
@@ -279,14 +309,15 @@ function showStep() {
   }
   for (const note of step.notes) {
     const color = step.onsets.includes(note) ? pressColor() : holdColor()
+    const side = sideOf(step.parts.get(note))
     if (!lit.has(note)) {
-      lightOn(note, 1, 100, color) // note starts on this step
+      lightOn(note, 1, 100, color, side) // note starts on this step
     } else if (step.onsets.includes(note)) {
       // Lit note struck again: go dark briefly, or it reads as a note to keep holding
       lightOff(note)
       setTimeout(() => {
         if (current === generation) {
-          lightOn(note, 1, 100, color)
+          lightOn(note, 1, 100, color, side)
         }
       }, RESTRIKE_BLINK)
     } else {
@@ -338,17 +369,18 @@ function showPreview(step, next) {
   }
   for (const note of next.onsets) {
     if (step.notes.includes(note)) continue
-    previewNotes.set(note, color)
-    highlightInstrument(note, color)
-    highlightVisualization(note, color, 'preview')
+    const side = sideOf(next.parts.get(note))
+    previewNotes.set(note, { color, side })
+    highlightInstrument(note, color, side)
+    highlightVisualization(note, color, 'preview', false, side)
   }
 }
 
 function clearPreview() {
-  for (const note of [...previewNotes.keys()]) {
+  for (const [note, { side }] of [...previewNotes]) {
     previewNotes.delete(note)
-    highlightInstrument(note, 0)
-    highlightVisualization(note, 0, 'preview')
+    highlightInstrument(note, 0, side)
+    highlightVisualization(note, 0, 'preview', false, side)
   }
 }
 
@@ -363,16 +395,17 @@ function markFutures(step, next) {
     return
   }
   for (const note of step.notes) {
+    const side = sideOf(step.parts.get(note))
     if (next.onsets.includes(note)) {
-      markCells(note, 'step-restrike')
+      markCells(note, 'step-restrike', side)
     } else if (next.notes.includes(note)) {
-      markCells(note, 'step-sustains')
+      markCells(note, 'step-sustains', side)
     }
   }
 }
 
-function markCells(note, className) {
-  for (const [x, y] of ext.gridDict[note] ?? []) {
+function markCells(note, className, side = null) {
+  for (const [x, y] of litPads(note, side) ?? []) {
     const cell = document.getElementById(`cell-${x}-${y}`)
     if (cell) {
       cell.classList.add(className)
@@ -409,7 +442,10 @@ function checkStep() {
   showStep()
 }
 
-/** A note with no pad in the current layout can never be pressed, so it cannot gate a step */
+/**
+ * A note with no pad in the current layout can never be pressed, so it cannot gate a
+ * step. Any pad sending the note counts: the instrument reports the note, not the pad.
+ */
 function isPlayable(note) {
   const coords = ext.gridDict?.[note]
   return !!coords && coords.length > 0
@@ -428,39 +464,52 @@ function pressedOnThisStep(note) {
 // HELPER FUNCTIONS                     //
 //////////////////////////////////////////
 
-function lightOn(note, channel = 1, velocity = 100, color = ext.config.guideHighlightColor) {
-  activeNotes.set(note, color)
-  guideNoteOn(note, channel, velocity, color)
+function lightOn(note, channel = 1, velocity = 100, color = ext.config.guideHighlightColor, side = null) {
+  releaseOtherSide(note, side)
+  activeNotes.set(note, { color, side })
+  guideNoteOn(note, channel, velocity, color, side)
 }
 
 function lightOff(note, channel = 1, velocity = 0) {
+  const lit = activeNotes.get(note)
   activeNotes.delete(note)
-  guideNoteOff(note, channel, velocity)
+  guideNoteOff(note, channel, velocity, lit?.side ?? null)
+}
+
+/**
+ * Both hands can be on the same note at once, lighting different pads for it. Only
+ * one fits in activeNotes, so the other's pad is released here rather than left lit
+ * with nothing to turn it off. A light, not a note: neither measured nor recorded.
+ */
+function releaseOtherSide(note, side) {
+  const lit = activeNotes.get(note)
+  if (lit && lit.side !== side) {
+    highlightInstrument(note, 0, lit.side)
+    highlightVisualization(note, 0, 'guide', false, lit.side)
+  }
 }
 
 /** Repaint a note that is already lit, which is not a note of its own */
 function recolor(note, color) {
-  if (activeNotes.get(note) === color) {
+  const lit = activeNotes.get(note)
+  if (lit?.color === color) {
     return
   }
-  activeNotes.set(note, color)
-  recolorGuideNote(note, color)
+  activeNotes.set(note, { color, side: lit?.side ?? null })
+  recolorGuideNote(note, color, lit?.side ?? null)
 }
 
 /**
  * Light the pads that should be lit again.
  *
- * The LinnStrument repaints its LEDs whenever it answers an NRPN, and it takes in
- * MIDI while painting, so a cell update arriving mid-paint is dropped when the
- * repaint copies its buffer back. Real time playback never notices, because it
- * lights notes again every few hundred milliseconds; step mode lights a note once
- * and then leaves it alone for as long as it takes to play, so it has to put its
- * own lights back. Sending a cell that is already the right colour changes nothing
- * on the instrument, so this is safe to call as often as we like.
+ * The LinnStrument repaints its LEDs whenever it answers an NRPN, and drops cell
+ * updates that arrive mid-paint. Real time playback never notices, since it relights
+ * every few hundred ms; step mode lights a note once and leaves it, so it has to put
+ * its own lights back. Re-sending a color a pad already has is a no-op.
  */
 export function refreshInstrumentLights() {
-  for (const [note, color] of [...activeNotes, ...previewNotes]) {
-    highlightInstrument(note, color)
+  for (const [note, { color, side }] of [...activeNotes, ...previewNotes]) {
+    highlightInstrument(note, color, side)
   }
 }
 

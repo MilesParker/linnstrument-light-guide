@@ -1,5 +1,5 @@
 import { highlightInstrumentXY } from "./main.js"
-import { layoutGrid, uniformGrid, gridToDict, splitOf } from "./layout.js"
+import { layoutGrid, uniformGrid, gridToDict, gridToCenterDict, splitOf, LEFT, RIGHT, PREFER_DEEPEST } from "./layout.js"
 
 /** LinnStrument color numbers, as used by its CC 22 and by the config dropdowns */
 export const ledColors = ['per-note', 'red', 'yellow', 'green', 'cyan', 'blue', 'magenta', 'off', 'white', 'orange', 'lime', 'pink']
@@ -34,6 +34,38 @@ export function generateGrid(config, deviceLayout = null) {
  */
 export function getGridDict(grid) {
   return gridToDict(grid)
+}
+
+/** Duplicate Note Pads setting: which of a note's pads light up */
+export const PADS_ALL = 0
+export const PADS_CENTER_EACH_SPLIT = 1
+export const PADS_CENTER_ONE_SPLIT = 2
+
+/**
+ * Dictionary from note to the pads to light for it. Without a split the last two
+ * settings come to the same thing, since there is only one side to pick from.
+ */
+export function getLitDict(grid, config, deviceLayout = null) {
+  switch (config.duplicateNotePads) {
+    case PADS_CENTER_EACH_SPLIT:
+      return gridToCenterDict(grid, deviceLayout)
+    case PADS_CENTER_ONE_SPLIT:
+      return gridToCenterDict(grid, deviceLayout, PREFER_DEEPEST)
+    default:
+      return gridToDict(grid)
+  }
+}
+
+/**
+ * One dictionary per side, each putting a note under that side's hand wherever it
+ * can. Used for notes whose part is known (see parts.js); a note the side cannot
+ * play falls back to the side that can.
+ */
+export function getSideDicts(grid, deviceLayout) {
+  return {
+    [LEFT]: gridToCenterDict(grid, deviceLayout, LEFT),
+    [RIGHT]: gridToCenterDict(grid, deviceLayout, RIGHT),
+  }
 }
 
 /**

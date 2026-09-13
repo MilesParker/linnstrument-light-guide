@@ -18,10 +18,17 @@ export const defaultConfig = {
   playedHighlightColor: 12,
   guideHighlightColor: 6,
   /**
-   * Step mode only. Each of these says what to do with a lit pad beyond it simply
-   * being part of the step, and each falls back to how step mode looked without it
-   * when switched off, rather than leaving a pad dark that used to be lit.
+   * Which of a note's pads light up: every one of them (0), the one nearest the
+   * middle of each split (1), or that of a single split (2). See getLitDict.
    */
+  duplicateNotePads: 1,
+  /**
+   * Light a guide note under the hand whose part it belongs to, read from the MIDI
+   * file's tracks or channels rather than from pitch. Needs a split to route between.
+   */
+  partRouting: 1,
+  // Step mode only. Each says what to do with a lit pad beyond it being part of the
+  // step, and each falls back to how step mode looked without it when switched off.
   /** Color for a note struck on an earlier step and only held now. Off reuses guideHighlightColor. */
   stepHoldColor: 4,
   /** Color for the notes the next step strikes, lit while still dark. Off shows no look ahead. */
@@ -105,6 +112,8 @@ export function updateSettingsInUI(config) {
   setField('reversedSplits', config.reversedSplits)
   setField('showFeedback', config.showFeedback)
   setField('guideHighlightColor', config.guideHighlightColor)
+  setField('duplicateNotePads', config.duplicateNotePads)
+  setField('partRouting', config.partRouting)
   setField('playedHighlightColor', config.playedHighlightColor)
   setField('stepHoldColor', config.stepHoldColor)
   setField('stepNextColor', config.stepNextColor)
@@ -129,6 +138,8 @@ function configFromUI() {
     reversedSplits: document.getElementById("reversedSplits").value,
     showFeedback: parseInt(document.getElementById("showFeedback").value),
     guideHighlightColor: parseInt(document.getElementById("guideHighlightColor").value),
+    duplicateNotePads: parseInt(document.getElementById("duplicateNotePads").value),
+    partRouting: parseInt(document.getElementById("partRouting").value),
     playedHighlightColor: parseInt(document.getElementById("playedHighlightColor").value),
     stepHoldColor: parseInt(document.getElementById("stepHoldColor").value),
     stepNextColor: parseInt(document.getElementById("stepNextColor").value),
