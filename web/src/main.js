@@ -1,8 +1,8 @@
 import { log } from "./log.js";
-import { initConfig, resetConfig, saveConfig, updateSettingsInUI } from "./config.js";
-import { resetGrid, getGridDict, generateGrid, drawGrid } from "./grid.js";
+import { initConfig, resetConfig, saveConfig, updateSettingsInUI, refreshSaveState } from "./config.js";
+import { resetGrid, getGridDict, generateGrid, drawGrid, ledClass, devicePlayedColor, COLOR_FROM_DEVICE } from "./grid.js";
 import { ROWOFFSET_OCTAVECUSTOM, ROWOFFSET_GUITAR } from "./layout.js";
-import { registerPlayerEvents } from "./player.js";
+import { registerPlayerEvents, refreshInstrumentLights } from "./player.js";
 import { measureNoteTiming, calculateStatistics, logGuideNoteTiming } from "./statistics.js";
 import { createMidiInputRecording, exportMidiInputRecording } from "./recorder.js";
 
@@ -31,11 +31,6 @@ export const ext = {
   },
   stats: {
     guideNoteTimings: [],
-  },
-  device: {
-    linnStrument: {
-      lastStateUpdate: null,
-    }
   },
   /** Layout read from the LinnStrument (see layout.js), null until detected */
   deviceLayout: null,
@@ -74,22 +69,15 @@ async function init() {
 
   log.info(`Successfully initialized.`)
 
-  // Infer current layout / transposition from LinnStrument directly
-  try {
-    await getStateFromLinnStrument()
-  } catch (err) {
-    log.warn('Could not get state from LinnStrument, please adjust config manually.')
-  }
+  // Infer current layout / transposition from LinnStrument directly.
+  // After this it is only read again when the Read button is pressed.
+  await readConfigFromLinnStrument()
   
-  // Periodically sync state between LinnStrument, app and player
   // This runs every 100ms, but the real intervals are checked by the functions
   // and is different for each functionality
-  setInterval(async () => {
+  setInterval(() => {
     checkForStatisticsDump()
     checkForMidiDump()
-    try {
-      await getStateFromLinnStrument()
-    } catch (ignore) {}
   }, 100);
 
   createMidiInputRecording()
@@ -110,6 +98,13 @@ async function registerUiEvents() {
   document.getElementById("save").addEventListener("click", (event) => {
     saveConfig(ext.config, event)
   });
+  document.getElementById("read-config").addEventListener("click", readConfigFromLinnStrument);
+
+  // Light the Save key as soon as the form no longer matches what is stored
+  document.querySelectorAll('.card-body form').forEach((form) => {
+    form.addEventListener("input", () => refreshSaveState(ext.config));
+    form.addEventListener("change", () => refreshSaveState(ext.config));
+  });
   document.getElementById("reset-config").addEventListener("click", resetConfig);
   document.getElementById("reset-state").addEventListener("click", resetState);
   document.getElementById("clear-log").addEventListener("click", clearLog);
@@ -124,7 +119,7 @@ async function registerUiEvents() {
   // Enable tooltips
   const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
   tooltipTriggerList.map(function (tooltipTriggerEl) {
-    return new bootstrap.Tooltip(tooltipTriggerEl)
+    return new bootstrap.Tooltip(tooltipTriggerEl, { delay: { show: 1500, hide: 100 } })
   })
 }
 
@@ -419,8 +414,9 @@ export function highlightVisualization(noteNumber, color, type = "played", big =
     for (const noteCoord of noteCoords) {
       const x = noteCoord[0]
       const y = noteCoord[1]
+      const padColor = color === COLOR_FROM_DEVICE ? devicePlayedColor(x) : color
 
-      if (color === 0) {
+      if (padColor === 0) {
         const cell = document.getElementById(`highlight-${type}-${x}-${y}`)
         if (cell) {
           cell.parentNode.removeChild(cell);
@@ -431,7 +427,7 @@ export function highlightVisualization(noteNumber, color, type = "played", big =
 
         const highlightEl = document.createElement('span')
         highlightEl.id = `highlight-${type}-${x}-${y}`
-        highlightEl.className = `highlight highlight-${type} highlight-${color}`
+        highlightEl.className = `highlight highlight-${type} ${ledClass(padColor)}`
         if (big) {
           highlightEl.style = `height: ${size - 6}px; width: ${size - 6}px; margin-left: ${3}px;`
         } else {
@@ -444,45 +440,61 @@ export function highlightVisualization(noteNumber, color, type = "played", big =
   }
 }
 
-async function getStateFromLinnStrument() {
+/** Only one read may be in flight at a time, so two presses cannot interleave */
+let readingState = false
 
-  if (ext.device.linnStrument.lastStateUpdate && performance.now() - ext.config.updateInstrumentStateInterval <= ext.device.linnStrument.lastStateUpdate) {
+/**
+ * Read layout, transposition and note light settings from the LinnStrument and apply
+ * them. A read is a sequence of NRPN round trips with no way to tell which answer
+ * belongs to which request, so it only runs when asked: at startup, and on Read.
+ */
+export async function readConfigFromLinnStrument() {
+  if (readingState) {
     return
   }
-  ext.device.linnStrument.lastStateUpdate = performance.now()
-  
-  if (ext.output && ext.input) {
+  if (!ext.output || !ext.input) {
+    log.warn(`Cannot read from LinnStrument without both an instrument input and output port.`)
+    return
+  }
+
+  readingState = true
+  try {
+    const layout = await readDeviceLayout()
+    ext.config.bpm = await getLinnStrumentParamValue(238)
+    ext.deviceLayout = layout
+
     try {
-      const layout = await readDeviceLayout()
-
-      // Get current BPM
-      ext.config.bpm = await getLinnStrumentParamValue(238);
-
-      if (JSON.stringify(layout) !== JSON.stringify(ext.deviceLayout)) {
-        ext.deviceLayout = layout
-        setupGrid()
-
-        // Reflect the detected bottom-left note and row interval in the manual config fields
-        const [bottom, second] = [ext.grid[0][0], ext.grid[0][1]]
-        if (bottom >= 0) ext.config.startNoteNumber = bottom
-        if (bottom >= 0 && second >= 0) ext.config.rowOffset = second - bottom
-        updateSettingsInUI(ext.config)
-
-        const splitInfo = layout.splitActive
-          ? `split at column ${layout.splitPoint}, left ${describeSplit(layout.splits[0])}, right ${describeSplit(layout.splits[1])}`
-          : `no split, ${describeSplit(layout.splits[layout.selectedSplit])}`
-        const reversedInfo = layout.reversed ? `, reversed ${ext.config.reversedSplits}` : ''
-        log.info(`Detected state from LinnStrument: rowOffsetMode=${layout.rowOffsetMode}, ${splitInfo}${reversedInfo}, bpm=${ext.config.bpm}`)
-      }
-      ext.device.linnStrument.lastStateUpdate = performance.now()
+      ext.noteLights = await readNoteLights()
     } catch (err) {
-      console.warn(`Could not get state from LinnStrument, please adjust config manually.`)
-      ext.device.linnStrument.lastStateUpdate = performance.now() + 3000
-      throw err
+      ext.noteLights = null
+      log.warn(`Could not read note light settings, using note name colors instead: ${err}`)
     }
-  } else {
-    console.warn(`Cannot get state from LinnStrument because instrument input or output device is missing.`)
-    ext.device.linnStrument.lastStateUpdate = performance.now() + 3000
+
+    setupGrid()
+
+    // Reflect the detected bottom-left note and row interval in the config
+    const [bottom, second] = [ext.grid[0][0], ext.grid[0][1]]
+    if (bottom >= 0) ext.config.startNoteNumber = bottom
+    if (bottom >= 0 && second >= 0) ext.config.rowOffset = second - bottom
+    updateSettingsInUI(ext.config)
+
+    const splitInfo = layout.splitActive
+      ? `split at column ${layout.splitPoint}, left ${describeSplit(layout.splits[0])}, right ${describeSplit(layout.splits[1])}`
+      : `no split, ${describeSplit(layout.splits[layout.selectedSplit])}`
+    const reversedInfo = layout.reversed ? `, reversed ${ext.config.reversedSplits}` : ''
+    const lights = ext.noteLights
+    const lightsInfo = lights
+      ? `, noteLights=${lights.main.filter(Boolean).length} main / ${lights.accent.filter(Boolean).length} accent, colors ${JSON.stringify(lights.splitColors)}`
+      : ', noteLights=unavailable'
+    log.success(`Read from LinnStrument: rowOffsetMode=${layout.rowOffsetMode}, ${splitInfo}${reversedInfo}, bpm=${ext.config.bpm}${lightsInfo}`)
+
+    // Reading repaints the LinnStrument's LEDs, dropping pad colors that arrived
+    // mid-paint. Put them back.
+    refreshInstrumentLights()
+  } catch (err) {
+    log.warn(`Could not read from LinnStrument, please adjust config manually. (${err})`)
+  } finally {
+    readingState = false
   }
 }
 
@@ -529,6 +541,33 @@ async function readDeviceLayout() {
   }
 
   return layout
+}
+
+/**
+ * Which pitch classes the LinnStrument lights by itself, and in what color. Note
+ * lights (NRPN 203-214 main, 215-226 accent) are global; the main, accent and played
+ * colors (NRPN 30/31/32, +100 for the right split) are per split.
+ */
+async function readNoteLights() {
+  const get = getLinnStrumentParamValue
+
+  const main = []
+  const accent = []
+  for (let i = 0; i < 12; i++) {
+    main.push(await get(203 + i))
+    accent.push(await get(215 + i))
+  }
+
+  const splitColors = []
+  for (const base of [0, 100]) {
+    splitColors.push({
+      main: await get(base + 30),
+      accent: await get(base + 31),
+      played: await get(base + 32),
+    })
+  }
+
+  return main.includes(undefined) ? null : { main, accent, splitColors }
 }
 
 function describeSplit(split) {

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-bs-theme="dark">
 
 <head>
   <!-- Required meta tags -->
@@ -22,18 +22,18 @@
 <body>
   <div class="container py-3">
     <header>
-      <div class="d-flex flex-column flex-md-row align-items-center pb-3 mb-4 border-bottom">
-        <a href="https://fannon.github.io/linnstrument-light-guide/" class="d-flex align-items-center text-dark text-decoration-none">
+      <div class="d-flex flex-column flex-md-row align-items-center pb-2 mb-3 border-bottom">
+        <a href="https://fannon.github.io/linnstrument-light-guide/" class="d-flex align-items-center text-decoration-none">
           <title>LinnStrument Light Guide</title> 
           <span id="app-title">LinnStrument Light Guide <small class="text-muted">1.3.0</small></span>
         </a>
 
         <nav class="d-inline-flex mt-2 mt-md-0 ms-md-auto">
-          <a class="me-3 py-2 text-dark text-decoration-none" target="_blank"
+          <a class="me-3 text-decoration-none" target="_blank"
             href="https://github.com/Fannon/linnstrument-light-guide#linnstrument-light-guide-support">Documentation</a>
-          <a class="me-3 py-2 text-dark text-decoration-none" target="_blank"
+          <a class="me-3 text-decoration-none" target="_blank"
             href="https://www.kvraudio.com/forum/viewtopic.php?t=595693&sid=2f8c8f467ff70df44f7028e8f21bbbaf">KVR Forum Thread</a>
-          <a class="me-3 py-2 text-dark text-decoration-none" target="_blank"
+          <a class="me-3 text-decoration-none" target="_blank"
             href="https://github.com/Fannon/linnstrument-light-guide">GitHub</a>
         </nav>
       </div>
@@ -42,52 +42,63 @@
     <main>
       <div class="row text-left">
         <div class="col">
-          <div id="visualization"></div>
-        </div>
-      </div>
-      <br />
-      <div class="row">
-        <div class="col-6 text-start">
-          <button type="button" id="save" class="btn btn-success" data-bs-toggle="tooltip" data-bs-placement="top" title="After changing any of the below settings, press Save & Apply.">Save & Apply Config</button>
-          <button type="button" id="reset-config" class="btn btn-danger" data-bs-toggle="tooltip" data-bs-placement="top" title="Reset Config to defaults, in case there are issues.">Reset Config</button>
-        </div>
-        <div class="col-6 text-end">
-          <button id="reset-state" type="button" class="btn btn-secondary" data-bs-toggle="tooltip" data-bs-placement="top" title="Resets all state (incl. highlights) on the visualization and the LinnStrument.">Reset State</button>
-          <button id="calculate-statistics" type="button" class="btn btn-secondary" data-bs-toggle="tooltip" data-bs-placement="top" title="Calculates statistics on how the played notes compare against the Light Guide notes. This also happens automatically after some play breaks.">Calculate Statistics</button>
-          <button id="clear-history" type="button" class="btn btn-secondary" data-bs-toggle="tooltip" data-bs-placement="top" title="Clears history, recordings and statistics.">Clear History</button>
-          <button id="clear-log" type="button" class="btn btn-secondary" data-bs-toggle="tooltip" data-bs-placement="top" title="Clear the log below.">Clear Log</button>
-        </div>
-      </div>
-      <br />
-      <div class="row">
-        <div class="col-12 text-start d-flex gap-2 align-items-center">
-          <label for="midiFile" class="form-label mb-0">MIDI File:</label>
-          <input type="file" id="midiFile" accept=".mid,.midi" class="form-control" style="max-width: 24rem;" data-bs-toggle="tooltip" data-bs-placement="top" title="Play a local MIDI file directly into the Light Guide. No virtual MIDI port needed.">
-          <button id="player-play" type="button" class="btn btn-primary" disabled>Play</button>
-          <button id="player-stop" type="button" class="btn btn-secondary" disabled>Stop</button>
-          <div class="form-check mb-0" data-bs-toggle="tooltip" data-bs-placement="top" title="Step through the file instead of playing it in time: each set of notes stays lit until every one of them is held down.">
-            <input class="form-check-input" type="checkbox" id="player-step">
-            <label class="form-check-label" for="player-step">Step</label>
+          <div class="instrument-panel">
+            <div id="visualization"></div>
           </div>
         </div>
       </div>
-      <br />
+      <div class="panel-groups">
+        <div class="panel-group" style="--keys: 3">
+          <div class="panel-group-title">Configuration</div>
+          <div class="panel-group-keys">
+            <button type="button" id="read-config" class="btn btn-secondary" data-bs-toggle="tooltip" data-bs-placement="top" title="Read the current layout, transposition and note light settings from the LinnStrument. Nothing is read until you press this.">Import</button>
+            <button type="button" id="save" class="btn btn-success" data-bs-toggle="tooltip" data-bs-placement="top" title="Save the settings below and apply them.">Save</button>
+            <button type="button" id="reset-config" class="btn btn-danger" data-bs-toggle="tooltip" data-bs-placement="top" title="Reset the settings below back to their defaults.">Reset</button>
+          </div>
+        </div>
+        <div class="panel-group" style="--keys: 1">
+          <div class="panel-group-title">State</div>
+          <div class="panel-group-keys">
+            <button id="reset-state" type="button" class="btn btn-secondary" data-bs-toggle="tooltip" data-bs-placement="top" title="Resets all state (incl. highlights) on the visualization and the LinnStrument.">Reset</button>
+          </div>
+        </div>
+        <div class="panel-group" style="--keys: 4">
+          <div class="panel-group-title">Player</div>
+          <div class="panel-group-keys">
+            <input type="file" id="midiFile" accept=".mid,.midi" class="visually-hidden">
+            <label for="midiFile" id="midiFileLabel" class="btn btn-secondary" data-bs-toggle="tooltip" data-bs-placement="top" title="Play a local MIDI file directly into the Light Guide. No virtual MIDI port needed.">Choose File</label>
+            <button id="player-play" type="button" class="btn btn-primary" disabled>Play</button>
+            <button id="player-stop" type="button" class="btn btn-secondary" disabled>Stop</button>
+            <div class="form-check" data-bs-toggle="tooltip" data-bs-placement="top" title="Step through the file instead of playing it in time: each set of notes stays lit until every one of them is held down.">
+              <input class="form-check-input" type="checkbox" id="player-step">
+              <label class="form-check-label" for="player-step">Step</label>
+            </div>
+          </div>
+        </div>
+        <div class="panel-group" style="--keys: 2">
+          <div class="panel-group-title">Statistics</div>
+          <div class="panel-group-keys">
+            <button id="calculate-statistics" type="button" class="btn btn-secondary" data-bs-toggle="tooltip" data-bs-placement="top" title="Calculates statistics on how the played notes compare against the Light Guide notes. This also happens automatically after some play breaks.">Calculate</button>
+            <button id="clear-history" type="button" class="btn btn-secondary" data-bs-toggle="tooltip" data-bs-placement="top" title="Clears history, recordings and statistics.">Clear</button>
+          </div>
+        </div>
+        <div class="panel-group" style="--keys: 1">
+          <div class="panel-group-title">Log</div>
+          <div class="panel-group-keys">
+            <button id="clear-log" type="button" class="btn btn-secondary" data-bs-toggle="tooltip" data-bs-placement="top" title="Clear the log below.">Clear</button>
+          </div>
+        </div>
+      </div>
       <div class="row text-left">
         <div class="col-3">
-          <div class="card text-dark bg-light mb-3">
-            <div class="card-header">General Configuration</div>
-            <div class="card-body">
+          <div class="card mb-3">
+            <div class="card-header" data-bs-toggle="collapse" data-bs-target="#general-config" aria-expanded="true">General Configuration</div>
+            <div class="card-body collapse show" id="general-config">
               <form>
-                <label for="startNoteNumber" class="form-label">Start MIDI Note Number</label>
-                <input id="startNoteNumber" class="form-control" type="text" placeholder="30" data-bs-toggle="tooltip" data-bs-placement="right" title="MIDI Note Number for the first pad in the bottom left corner. Should be auto-detected and synced from LinnStrument settings.">
 
-                <label for="rowOffset" class="form-label">Row Offset</label>
-                <input id="rowOffset" class="form-control" type="text" placeholder="5"  data-bs-toggle="tooltip" data-bs-placement="right" title="Row Offset. Should be auto-detected and synced from LinnStrument settings.">
-                <label for="colOffset" class="form-label">Column Offset</label>
-                <input id="colOffset" class="form-control" type="text" placeholder="1"  data-bs-toggle="tooltip" data-bs-placement="right" title="Column Offset. Not supported by LinnStrument officially.">
 
                 <label for="reversedSplits" class="form-label">Reversed Splits</label>
-                <select id="reversedSplits" class="form-select" data-bs-toggle="tooltip" data-bs-placement="right" title="Which splits left handed operation reverses (REV, REVL or REVR on the LinnStrument). Only applies when the LinnStrument reports left handed operation is on, which is auto-detected. The LinnStrument does not report which splits it applies to, so it has to be set here.">
+                <select id="reversedSplits" class="form-select" data-bs-toggle="tooltip" data-bs-placement="right" title="Which splits left handed operation reverses (REV, REVL or REVR). Left handed operation is auto-detected, but the LinnStrument does not report which splits it applies to, so that is set here.">
                   <option value="both">Both (REV)</option>
                   <option value="left">Left only (REVL)</option>
                   <option value="right">Right only (REVR)</option>
@@ -115,10 +126,10 @@
                   <option value="11">Pink</option>
                 </select>
 
-                <label for="playedHighlightColor" class="form-label">Played Guide Note Color</label>
-                <select id="playedHighlightColor" class="form-select" data-bs-toggle="tooltip" data-bs-placement="right" title="Color for played note highlights on visualization. Does not change the LinnStrument setting.">
+                <label for="playedHighlightColor" class="form-label">Played Note Color</label>
+                <select id="playedHighlightColor" class="form-select" data-bs-toggle="tooltip" data-bs-placement="right" title="Color for pads you play, on the visualization only. The LinnStrument has its own setting for this under COLOR / PLAYED, which 'As set on LinnStrument' reads.">
+                  <option value="12">As set on LinnStrument</option>
                   <option value="7">Off</option>
-                  <!-- <option value="0" selected>As set in Note Lights settings</option> -->
                   <option value="1">Red</option>
                   <option value="2">Yellow</option>
                   <option value="3">Green</option>
@@ -138,19 +149,19 @@
                 </select>
 
                 <label for="delayedNoteThreshold" class="form-label">Delayed Note Threshold (ms)</label>
-                <input id="delayedNoteThreshold" class="form-control" type="text" placeholder="1" data-bs-toggle="tooltip" data-bs-placement="right" title="Below this timing offset, a note is considered in-time. Above, its considered early or late.">
+                <input id="delayedNoteThreshold" class="form-control text-end" type="text" placeholder="1" data-bs-toggle="tooltip" data-bs-placement="right" title="Below this timing offset, a note is considered in-time. Above, its considered early or late.">
 
                 <label for="missedNoteThreshold" class="form-label">Missed Note Threshold (ms)</label>
-                <input id="missedNoteThreshold" class="form-control" type="text" placeholder="1" data-bs-toggle="tooltip" data-bs-placement="right" title="Above this timing offset, a note is consider a missed note.">
+                <input id="missedNoteThreshold" class="form-control text-end" type="text" placeholder="1" data-bs-toggle="tooltip" data-bs-placement="right" title="Above this timing offset, a note is consider a missed note.">
 
               </form>
             </div>
           </div>
         </div>
         <div class="col-3">
-           <div class="card text-dark bg-light mb-3">
-            <div class="card-header">MIDI Port Configuration</div>
-            <div class="card-body">
+           <div class="card mb-3">
+            <div class="card-header" data-bs-toggle="collapse" data-bs-target="#midi-config" aria-expanded="true">MIDI Port Configuration</div>
+            <div class="card-body collapse show" id="midi-config">
               <form>
                 <label for="instrumentInputPort" class="form-label"><strong>Input</strong>: Instrument</label>
                 <select id="instrumentInputPort" class="form-select" data-bs-toggle="tooltip" data-bs-placement="left" title="Select your Instrument / LinnStrument MIDI Input port for receiving played notes.">
@@ -192,10 +203,11 @@
 
         </div>
         <div class="col-6">
-          <div class="card text-dark bg-light mb-3">
-            <div class="card-header">Logs <small class="text-muted">(most recent on top)</small>              
+          <div class="card mb-3">
+            <div class="card-header" data-bs-toggle="collapse" data-bs-target="#log-panel" aria-expanded="true">Logs <small class="text-muted">(most recent on top)</small>
             </div>
-            <div class="card-body" id="log">
+            <div class="card-body collapse show" id="log-panel">
+              <div id="log"></div>
             </div>
           </div>
         </div>

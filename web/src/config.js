@@ -15,7 +15,7 @@ export const defaultConfig = {
   // General Options                      //
   //////////////////////////////////////////
 
-  playedHighlightColor: 1,
+  playedHighlightColor: 12,
   guideHighlightColor: 6,
   showFeedback: 1,
   linnStrumentSize: 128,
@@ -39,8 +39,6 @@ export const defaultConfig = {
   // Advanced Options (no UI)             //
   //////////////////////////////////////////
 
-  /** Interval for updating the state, e.g. checking LinnStrument layout,  */
-  updateInstrumentStateInterval: 500, // in ms
   guideNoteStatistics: true,
   /** How long the guide note feedback stays visible (colorized border around the cell) (in ms) */
   guideNoteStaticsFadeOut: 800,
@@ -71,74 +69,75 @@ export function initConfig() {
   return config
 }
 
+/** Fills a MIDI port select, rebuilding the list since this runs on every layout read */
+function setPortOptions(id, devices, selected) {
+  const el = document.getElementById(id)
+  el.innerHTML = '<option value=""></option>'
+  devices.forEach((device) => {
+    const option = document.createElement("option")
+    option.text = device.name
+    option.selected = selected === device.name
+    el.add(option)
+  })
+}
+
+/** Writes a config value into its field, unless it is the one being edited */
+function setField(id, value) {
+  const el = document.getElementById(id)
+  if (el !== document.activeElement) {
+    el.value = value.toString()
+  }
+}
+
 export function updateSettingsInUI(config) {
 
-  document.getElementById('startNoteNumber').value = config.startNoteNumber.toString()
-  document.getElementById('rowOffset').value = config.rowOffset.toString()
-  document.getElementById('colOffset').value = config.colOffset.toString()
-  document.getElementById('reversedSplits').value = config.reversedSplits
-  document.getElementById('showFeedback').value = config.showFeedback.toString()
-  document.getElementById('guideHighlightColor').value = config.guideHighlightColor.toString()
-  document.getElementById('playedHighlightColor').value = config.playedHighlightColor.toString()
-  document.getElementById('linnStrumentSize').value = config.linnStrumentSize.toString()
-  document.getElementById('delayedNoteThreshold').value = config.delayedNoteThreshold.toString()
-  document.getElementById('missedNoteThreshold').value = config.missedNoteThreshold.toString()
+  setField('reversedSplits', config.reversedSplits)
+  setField('showFeedback', config.showFeedback)
+  setField('guideHighlightColor', config.guideHighlightColor)
+  setField('playedHighlightColor', config.playedHighlightColor)
+  setField('linnStrumentSize', config.linnStrumentSize)
+  setField('delayedNoteThreshold', config.delayedNoteThreshold)
+  setField('missedNoteThreshold', config.missedNoteThreshold)
 
-  // instrumentInputPort
-  WebMidi.inputs.forEach((device) => {
-    const option = document.createElement("option");
-    option.text = device.name; 
-    if (config.instrumentInputPort === device.name) {
-      option.selected = true
-    } 
-    document.getElementById('instrumentInputPort').add(option)
-  });
+  setPortOptions('instrumentInputPort', WebMidi.inputs, config.instrumentInputPort)
+  setPortOptions('instrumentOutputPort', WebMidi.outputs, config.instrumentOutputPort)
+  setPortOptions('lightGuideInputPort', WebMidi.inputs, config.lightGuideInputPort)
+  setPortOptions('forwardPort1', WebMidi.outputs, config.forwardPort1)
+  setPortOptions('forwardPort2', WebMidi.outputs, config.forwardPort2)
+  setPortOptions('instrumentInputPort2', WebMidi.inputs, config.instrumentInputPort2)
 
-  // instrumentOutputPort
-  WebMidi.outputs.forEach((device) => {
-    const option = document.createElement("option");
-    option.text = device.name; 
-    if (config.instrumentOutputPort === device.name) {
-      option.selected = true
-    } 
-    document.getElementById('instrumentOutputPort').add(option)
-  });
-  // lightGuideInputPort
-  WebMidi.inputs.forEach((device) => {
-    const option = document.createElement("option");
-    option.text = device.name; 
-    if (config.lightGuideInputPort === device.name) {
-      option.selected = true
-    } 
-    document.getElementById('lightGuideInputPort').add(option)
-  });
-  // forwardPort1
-  WebMidi.outputs.forEach((device) => {
-    const option = document.createElement("option");
-    option.text = device.name; 
-    if (config.forwardPort1 === device.name) {
-      option.selected = true
-    } 
-    document.getElementById('forwardPort1').add(option)
-  });
-  // forwardPort2
-  WebMidi.outputs.forEach((device) => {
-    const option = document.createElement("option");
-    option.text = device.name; 
-    if (config.forwardPort2 === device.name) {
-      option.selected = true
-    } 
-    document.getElementById('forwardPort2').add(option)
-  });
-  // instrumentInputPort2
-  WebMidi.outputs.forEach((device) => {
-    const option = document.createElement("option");
-    option.text = device.name; 
-    if (config.instrumentInputPort2 === device.name) {
-      option.selected = true
-    } 
-    document.getElementById('instrumentInputPort2').add(option)
-  });
+  refreshSaveState(config)
+}
+
+/** The config values the form is currently showing */
+function configFromUI() {
+  return {
+    reversedSplits: document.getElementById("reversedSplits").value,
+    showFeedback: parseInt(document.getElementById("showFeedback").value),
+    guideHighlightColor: parseInt(document.getElementById("guideHighlightColor").value),
+    playedHighlightColor: parseInt(document.getElementById("playedHighlightColor").value),
+    linnStrumentSize: parseInt(document.getElementById("linnStrumentSize").value),
+    delayedNoteThreshold: parseInt(document.getElementById("delayedNoteThreshold").value),
+    missedNoteThreshold: parseInt(document.getElementById("missedNoteThreshold").value),
+
+    instrumentInputPort: document.getElementById("instrumentInputPort").value,
+    instrumentOutputPort: document.getElementById("instrumentOutputPort").value,
+    lightGuideInputPort: document.getElementById("lightGuideInputPort").value,
+    forwardPort1: document.getElementById("forwardPort1").value,
+    forwardPort2: document.getElementById("forwardPort2").value,
+    instrumentInputPort2: document.getElementById("instrumentInputPort2").value,
+  }
+}
+
+/**
+ * Lights the Save key while the form differs from what is stored, which also covers
+ * settings just read off the LinnStrument but not yet saved.
+ */
+export function refreshSaveState(config) {
+  const stored = { ...config, ...JSON.parse(localStorage.getItem("config") || "{}") }
+  const current = configFromUI()
+  const unsaved = Object.keys(current).some((key) => String(current[key]) !== String(stored[key]))
+  document.getElementById("save").classList.toggle("unsaved", unsaved)
 }
 
 export function saveConfig(config, event) {
@@ -146,23 +145,7 @@ export function saveConfig(config, event) {
     event.preventDefault() 
   }
 
-  config.startNoteNumber = parseInt(document.getElementById("startNoteNumber").value);
-  config.rowOffset = parseInt(document.getElementById("rowOffset").value);
-  config.colOffset = parseInt(document.getElementById("colOffset").value);
-  config.reversedSplits = document.getElementById("reversedSplits").value;
-  config.showFeedback = parseInt(document.getElementById("showFeedback").value);
-  config.guideHighlightColor = parseInt(document.getElementById("guideHighlightColor").value);
-  config.playedHighlightColor = parseInt(document.getElementById("playedHighlightColor").value);
-  config.linnStrumentSize = parseInt(document.getElementById("linnStrumentSize").value);
-  config.delayedNoteThreshold = parseInt(document.getElementById("delayedNoteThreshold").value);
-  config.missedNoteThreshold = parseInt(document.getElementById("missedNoteThreshold").value);
-
-  config.instrumentInputPort = document.getElementById("instrumentInputPort").value;
-  config.instrumentOutputPort = document.getElementById("instrumentOutputPort").value;
-  config.lightGuideInputPort = document.getElementById("lightGuideInputPort").value;
-  config.forwardPort1 = document.getElementById("forwardPort1").value;
-  config.forwardPort2 = document.getElementById("forwardPort2").value;
-  config.instrumentInputPort2 = document.getElementById("instrumentInputPort2").value;
+  Object.assign(config, configFromUI())
 
   localStorage.setItem("config", JSON.stringify(config));
   location.reload()

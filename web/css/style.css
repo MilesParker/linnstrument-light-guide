@@ -1,12 +1,259 @@
-#app-title {
-  font-weight: 500;
-  font-size: 2em !important;
+/* ---------------------------------------------------------------------------
+ * Design tokens. Fonts, chassis colors and pad look are changed here only.
+ * ------------------------------------------------------------------------ */
+:root {
+  --ls-chassis: #0e1013;
+  --ls-panel: #171a1e;
+  --ls-panel-raised: #21252b;
+  --ls-edge: #32373e;
+  --ls-print: #e6e8ea;
+  --ls-print-dim: #8d949c;
+
+  --ls-font-body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --ls-font-print: "Avenir Next Condensed", "Roboto Condensed", "Arial Narrow", "Helvetica Neue", system-ui, sans-serif;
+  --ls-print-tracking: 0.09em;
+  --ls-print-weight: 600;
+
+  /* Playing surface, and the pad material the keys share with it */
+  --ls-surface: #bfc1bc;
+  --ls-pad: #d8dad4;
+  --ls-pad-print: #43463f;
+  --ls-radius: 0;
+
+  --bs-border-radius: var(--ls-radius);
+  --bs-border-radius-sm: var(--ls-radius);
+  --bs-border-radius-lg: var(--ls-radius);
+  --bs-border-radius-xl: var(--ls-radius);
+  --bs-border-radius-2xl: var(--ls-radius);
+  --bs-border-radius-pill: var(--ls-radius);
+
+  /* Panel keys: one size for all of them, lit color per action */
+  --ls-key-w: 3.4rem;
+  --ls-key-h: 1.7rem;
+  --ls-key-gap: 1.1rem;
+  --ls-group-gap: 1.6rem;
+  --ls-key-font: 0.8em;
+  --ls-key-unlit: #84887f;
+  --ls-key-led: #ffffff;
+  --ls-key-led-go: #3ddc6b;
+  --ls-key-led-stop: #ff5a5a;
+  --ls-key-led-active: #4da3ff;
 }
 
-#log {
-  height: 800px;
-  overflow-y: scroll;
+body {
+  background-color: var(--ls-chassis);
+  font-family: var(--ls-font-body);
+  user-select: none;
+  cursor: default;
 }
+#log,
+input,
+select,
+textarea {
+  user-select: text;
+  cursor: auto;
+}
+.btn,
+.form-check-input,
+label[for] {
+  cursor: pointer;
+}
+
+/* Screen-printed panel lettering: labels, headers, buttons, nav */
+#app-title,
+nav a,
+.panel-group-title,
+.card-header,
+.form-label,
+.form-check-label,
+.btn {
+  font-family: var(--ls-font-print);
+  font-weight: var(--ls-print-weight);
+  letter-spacing: var(--ls-print-tracking);
+  color: var(--ls-print);
+}
+
+nav a,
+.panel-group-title,
+.card-header,
+.form-label,
+.form-check-label,
+.btn {
+  text-transform: uppercase;
+}
+
+/* One row of key groups, each under a printed rule naming its concern */
+.panel-groups {
+  display: flex;
+  gap: var(--ls-group-gap);
+  align-items: flex-end;
+  margin: 0.5rem 0 0.75rem;
+}
+/* Basis covers the group's own gaps and grow is its key count, so every key
+   on the row ends up the same width and therefore the same distance apart */
+.panel-group {
+  flex-grow: var(--keys);
+  flex-shrink: 1;
+  flex-basis: calc((var(--keys) - 1) * var(--ls-key-gap));
+}
+.panel-group-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.7em;
+  color: var(--ls-print-dim);
+  margin-bottom: 0.25rem;
+}
+.panel-group-title::before,
+.panel-group-title::after {
+  content: "";
+  flex: 1;
+  border-top: 1px solid var(--ls-edge);
+}
+.panel-group-keys {
+  display: flex;
+  gap: var(--ls-key-gap);
+  justify-content: center;
+  align-items: flex-start;
+}
+.panel-group-keys > * {
+  flex: 1 1 0;
+}
+
+#app-title {
+  font-size: 2em !important;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+header {
+  --bs-border-color: var(--ls-edge);
+}
+header a:hover {
+  color: #fff;
+}
+nav a {
+  font-size: 0.85em;
+  color: var(--ls-print-dim);
+  background-color: var(--ls-panel-raised);
+  border: 1px solid var(--ls-edge);
+  border-radius: var(--bs-border-radius);
+  padding: 0.3rem 0.6rem;
+}
+
+.card {
+  --bs-card-bg: var(--ls-panel);
+  --bs-card-cap-bg: var(--ls-panel-raised);
+  --bs-card-border-color: var(--ls-edge);
+}
+.card-header {
+  font-size: 0.85em;
+}
+.card-header small {
+  letter-spacing: 0;
+}
+.card-header[data-bs-toggle="collapse"] {
+  cursor: pointer;
+}
+.card-header[data-bs-toggle="collapse"]::after {
+  content: "\25BE";
+  float: right;
+  color: var(--ls-print-dim);
+}
+.card-header[data-bs-toggle="collapse"].collapsed::after {
+  content: "\25B8";
+}
+
+.form-label {
+  font-size: 0.8em;
+  color: var(--ls-print-dim);
+  margin-bottom: .2rem;
+}
+.form-check-label {
+  font-size: var(--ls-key-font);
+}
+
+/* Panel keys, as on the instrument: a rectangular key of the surface
+   material with its label screen-printed on the panel above it. The key
+   lights in its action color while pressed. */
+.btn,
+.form-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.btn {
+  flex-direction: column;
+}
+.form-check {
+  flex-direction: column-reverse;
+  padding: 0.1rem 0;
+  background: none;
+  border: 1px solid transparent;
+}
+
+.btn {
+  --bs-btn-color: var(--ls-print);
+  --bs-btn-hover-color: #fff;
+  --bs-btn-active-color: #fff;
+  --bs-btn-disabled-color: var(--ls-print-dim);
+  --bs-btn-bg: transparent;
+  --bs-btn-hover-bg: transparent;
+  --bs-btn-active-bg: transparent;
+  --bs-btn-disabled-bg: transparent;
+  --bs-btn-border-color: transparent;
+  --bs-btn-hover-border-color: transparent;
+  --bs-btn-active-border-color: transparent;
+  --bs-btn-disabled-border-color: transparent;
+  --bs-btn-padding-x: 0;
+  --bs-btn-padding-y: 0.1rem;
+  font-size: var(--ls-key-font);
+}
+.btn-success { --ls-key-led: var(--ls-key-led-go); }
+.btn-danger { --ls-key-led: var(--ls-key-led-stop); }
+.btn-primary { --ls-key-led: var(--ls-key-led-active); }
+
+.btn::after,
+.form-check-input[type="checkbox"] {
+  flex: 0 0 auto;
+  width: var(--ls-key-w);
+  height: var(--ls-key-h);
+  border-radius: var(--ls-radius);
+  background-color: var(--ls-key-unlit);
+  background-image: none;
+  border: 1px solid rgba(0, 0, 0, 0.55);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.35);
+}
+.btn::after {
+  content: "";
+}
+.btn:hover::after,
+.btn:focus-visible::after,
+.btn:active::after,
+.btn.unsaved::after,
+.form-check-input[type="checkbox"]:checked {
+  background-color: var(--ls-key-led);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.5), 0 0 9px var(--ls-key-led);
+}
+
+.form-check-input[type="checkbox"] {
+  margin: 0;
+  float: none;
+}
+
+.form-control::file-selector-button {
+  background-color: var(--ls-panel-raised);
+  color: var(--ls-print-dim);
+}
+
+select, input {
+  margin-bottom: .5rem;
+}
+.form-control, .form-select {
+  --bs-body-bg: var(--ls-panel-raised);
+  --bs-border-color: var(--ls-edge);
+}
+
 .card-header button {
   float: right;
   margin-left: 8px;
@@ -14,21 +261,37 @@
   height: 24px;
 }
 
+#log {
+  height: 800px;
+  overflow-y: scroll;
+}
+
 .log-entry {
-  background: #f0f1f2;
+  background: var(--ls-panel-raised);
+  color: var(--ls-print-dim);
   font-size: 0.85em;
   padding: 2px 4px;
-  border-radius: 3px;
+  border-radius: var(--ls-radius);
   margin-bottom: 3px;
 }
 .log-success .msg {
-  color: #35c10e;
+  color: #5fd83c;
 }
 .log-warn .msg {
-  color: #ef9d08;
+  color: #f5b13a;
 }
 .log-error .msg {
-  color: #b61a1a;
+  color: #ff6b6b;
+}
+
+/* ---------------------------------------------------------------------------
+ * Playing surface
+ * ------------------------------------------------------------------------ */
+.instrument-panel {
+  background: var(--ls-surface);
+  border-radius: var(--ls-radius);
+  padding: 6px;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.5);
 }
 
 #visualization {
@@ -44,10 +307,16 @@
 }
 
 #visualization .cell {
-  background: #f2f2f2;
-  border-radius: 4px;
-  color: #000;
-  font-size: 0.8em;
+  background: var(--ls-pad);
+  border-radius: var(--ls-radius);
+  /* Sits above the LED, which is a negative-z child */
+  position: relative;
+  z-index: 0;
+  color: var(--ls-pad-print);
+  text-shadow: 0 0 3px rgba(255, 255, 255, 0.75);
+  font-family: var(--ls-font-print);
+  font-size: 0.85em;
+  letter-spacing: 0.04em;
   margin-left: 4px;
   margin-top: 4px;
   display: inline-flex;
@@ -56,65 +325,64 @@
   flex-direction: column;
 }
 
-#visualization .note-name-C {
+#visualization:not(.note-lights) .note-name-C {
   background-color: #c0d6eb;
 }
-#visualization .note-name-D,
-#visualization .note-name-E,
-#visualization .note-name-F,
-#visualization .note-name-G,
-#visualization .note-name-A,
-#visualization .note-name-B
+#visualization:not(.note-lights) .note-name-D,
+#visualization:not(.note-lights) .note-name-E,
+#visualization:not(.note-lights) .note-name-F,
+#visualization:not(.note-lights) .note-name-G,
+#visualization:not(.note-lights) .note-name-A,
+#visualization:not(.note-lights) .note-name-B
  {
   background-color: #d4f0ce;
 }
 #visualization .note-name-invalid {
-  background-image: linear-gradient(135deg, #fafafa 25%, #f2f2f2 25%, #f2f2f2 50%, #fafafa 50%, #fafafa 75%, #f2f2f2 75%, #f2f2f2 100%);
+  background-image: linear-gradient(135deg, rgba(0, 0, 0, 0.05) 25%, transparent 25%, transparent 50%, rgba(0, 0, 0, 0.05) 50%, rgba(0, 0, 0, 0.05) 75%, transparent 75%, transparent 100%);
   background-size: 16px 16px;
 }
 
+/* An LED under the translucent pad: saturated core bleeding into a halo.
+   Each color is one --ls-led triplet; everything else is shared. */
 #visualization .highlight {
   display: block;
   position: absolute;
-  /* animation: fade 0.2s linear; */
+  z-index: -1;
   border-radius: 50%;
-  background-color: rgba(255, 0, 0, 0.238);
   width: 16px;
   height: 16px;
+  background: radial-gradient(circle closest-side,
+      rgb(var(--ls-led) / 0.95) 0%,
+      rgb(var(--ls-led) / 0.85) 52%,
+      rgb(var(--ls-led) / 0.35) 76%,
+      rgb(var(--ls-led) / 0) 100%);
+  box-shadow: 0 0 10px 2px rgb(var(--ls-led) / 0.3);
 }
-#visualization .highlight-1 {
-  background-color: rgba(255, 0, 0, 0.35);
+/* The device's own note light, lit whenever that pitch class is enabled */
+#visualization .highlight-base {
+  width: 62%;
+  height: 62%;
+  left: 19%;
+  top: 19%;
+  margin: 0;
 }
-#visualization .highlight-2 {
-  background-color: rgba(255, 225, 0, 0.42);
+/* One color per pad: a guide note beats a played note beats the note light */
+#visualization .cell:has(.highlight-guide) .highlight-played,
+#visualization .cell:has(.highlight-guide) .highlight-base,
+#visualization .cell:has(.highlight-played) .highlight-base {
+  display: none;
 }
-#visualization .highlight-3 {
-  background-color: rgba(106, 206, 51, 0.403);
-}
-#visualization .highlight-4 {
-  background-color: rgba(26, 223, 219, 0.421);
-}
-#visualization .highlight-5 {
-  background-color: rgba(0, 89, 255, 0.35);
-}
-#visualization .highlight-6 {
-  background-color: rgba(247, 0, 255, 0.35);
-}
-#visualization .highlight-7 {
-  background-color: rgba(255, 255, 255, 0); 
-}
-#visualization .highlight-8 {
-  background-color: rgba(255, 255, 255, 0.48);
-}
-#visualization .highlight-9 {
-  background-color: rgba(246, 138, 50, 0.35);
-}
-#visualization .highlight-10 {
-  background-color: rgba(179, 255, 0, 0.42);
-}
-#visualization .highlight-11 {
-  background-color: rgba(255, 0, 162, 0.35);
-}
+#visualization .led-red { --ls-led: 255 45 40; }
+#visualization .led-yellow { --ls-led: 255 184 20; }
+#visualization .led-green { --ls-led: 55 224 90; }
+#visualization .led-cyan { --ls-led: 45 214 255; }
+#visualization .led-blue { --ls-led: 45 105 255; }
+#visualization .led-magenta { --ls-led: 255 60 240; }
+#visualization .led-off { display: none; }
+#visualization .led-white { --ls-led: 250 250 255; }
+#visualization .led-orange { --ls-led: 255 120 25; }
+#visualization .led-lime { --ls-led: 160 255 60; }
+#visualization .led-pink { --ls-led: 255 150 200; }
 
 #visualization .played-out-of-time {
   border: 3px solid #b61a1a;
@@ -127,16 +395,6 @@
 }
 #visualization .played-late {
   border: 3px solid #0d6efd;
-}
-
-
-.form-label {
-  /* margin-top: .5rem; */
-  margin-bottom: .2rem;
-}
-
-select, input {
-  margin-bottom: .5rem;
 }
 
 #visualization .cell.split-start {

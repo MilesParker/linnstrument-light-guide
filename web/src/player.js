@@ -8,7 +8,7 @@
  * time and waits until that chord has actually been played (see buildSteps).
  */
 
-import { ext, guideNoteOn, guideNoteOff } from "./main.js"
+import { ext, guideNoteOn, guideNoteOff, highlightInstrument } from "./main.js"
 import { log } from "./log.js"
 
 const DRUM_CHANNEL = 9 // GM channel 10, zero-based
@@ -17,6 +17,12 @@ const DRUM_CHANNEL = 9 // GM channel 10, zero-based
 const STEP_POLL_INTERVAL = 25
 /** How long a re-struck note goes dark before lighting up again (in ms) */
 const RESTRIKE_BLINK = 90
+/**
+ * Notes starting within this fraction of a beat belong to the same step.
+ * 1/16th of a beat is a 64th note, below any division worth stepping to, so this
+ * only ever merges notes meant to sound together.
+ */
+const CHORD_FRACTION = 16
 
 let player = null
 /** Notes currently lit by the player, so Stop can clear exactly those */
@@ -35,9 +41,15 @@ export function registerPlayerEvents() {
   const playEl = document.getElementById('player-play')
   const stopEl = document.getElementById('player-stop')
   const stepEl = document.getElementById('player-step')
+  const fileLabelEl = document.getElementById('midiFileLabel')
 
-  if (!fileEl || !playEl || !stopEl || !stepEl) {
+  if (!fileEl || !playEl || !stopEl || !stepEl || !fileLabelEl) {
     return
+  }
+
+  /** The label is the only visible part of the file chooser, so it carries the file name */
+  const setFileLabel = (name) => {
+    fileLabelEl.textContent = name.length > 24 ? `${name.slice(0, 23)}…` : name
   }
 
   fileEl.addEventListener('change', async (event) => {
@@ -48,6 +60,7 @@ export function registerPlayerEvents() {
       player = loadPlayer(await file.arrayBuffer())
       playEl.disabled = false
       stopEl.disabled = false
+      setFileLabel(file.name)
       const seconds = Math.round(player.durationMS() / 1000)
       log.success(`Loaded MIDI file: ${file.name} (${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}, ${steps.length} steps)`)
     } catch (err) {
@@ -55,6 +68,7 @@ export function registerPlayerEvents() {
       steps = []
       playEl.disabled = true
       stopEl.disabled = true
+      setFileLabel('Choose File')
       log.error(`Could not read MIDI file: ${file.name}`)
       console.error(err)
     }
@@ -78,7 +92,7 @@ function loadPlayer(arrayBuffer) {
   const p = smf.player()
 
   // Built before anything plays, from the same event list the player runs on
-  steps = buildSteps(p._data)
+  steps = buildSteps(p._data, p.ppqn)
 
   p.connect((msg) => {
     const status = msg[0] & 0xf0
@@ -118,14 +132,17 @@ function stopPlayback() {
 //////////////////////////////////////////
 
 /**
- * Group the file's notes into one step per tick that starts a note, which makes
- * the steps fall on the smallest division the file actually uses.
+ * Group the file's notes into one step per set of notes that start together.
  *
- * A step carries every note sounding at that tick, not just the new ones, so a
- * note held across several steps keeps its light and still has to stay held.
- * `onsets` are the notes that start on the step and so need a press of their own.
+ * A step carries every note sounding once it has begun, not just the new ones, so a
+ * note held across several steps keeps its light. `onsets` are the notes that start
+ * on the step and so need a press of their own.
+ *
+ * Notes are rarely written exactly on the tick, so anything within a 64th note of
+ * the step joins it. Splitting a chord that way would deadlock it: its later notes
+ * are already held by the time their step comes up, so could never be pressed afresh.
  */
-function buildSteps(data) {
+function buildSteps(data, ppqn) {
   const events = []
   for (const msg of data) {
     const status = msg[0] & 0xf0
@@ -144,11 +161,14 @@ function buildSteps(data) {
   const sounding = new Map()
   let i = 0
 
+  // SMPTE timed files carry no ppqn, so fall back to the JZZ default
+  const chordTicks = Math.max(1, Math.round((ppqn || 96) / CHORD_FRACTION))
+
   while (i < events.length) {
-    const tick = events[i].tick
+    const stepTick = events[i].tick
     const onsets = new Set()
 
-    while (i < events.length && events[i].tick === tick) {
+    while (i < events.length && events[i].tick - stepTick <= chordTicks) {
       const event = events[i++]
       if (event.on) {
         sounding.set(event.note, (sounding.get(event.note) ?? 0) + 1)
@@ -163,9 +183,14 @@ function buildSteps(data) {
       }
     }
 
-    // A tick that only ends notes is not a step of its own
+    // A tick that only ends notes is not a step of its own. A note that starts and
+    // ends again inside one step is dropped too: nothing lights up for it, so
+    // waiting for it to be pressed would stall.
     if (onsets.size) {
-      result.push({ notes: [...sounding.keys()], onsets: [...onsets] })
+      result.push({
+        notes: [...sounding.keys()],
+        onsets: [...onsets].filter((note) => sounding.has(note)),
+      })
     }
   }
 
@@ -263,6 +288,23 @@ function lightOn(note, channel = 1, velocity = 100) {
 function lightOff(note, channel = 1, velocity = 0) {
   activeNotes.delete(note)
   guideNoteOff(note, channel, velocity)
+}
+
+/**
+ * Light the pads that should be lit again.
+ *
+ * The LinnStrument repaints its LEDs whenever it answers an NRPN, and it takes in
+ * MIDI while painting, so a cell update arriving mid-paint is dropped when the
+ * repaint copies its buffer back. Real time playback never notices, because it
+ * lights notes again every few hundred milliseconds; step mode lights a note once
+ * and then leaves it alone for as long as it takes to play, so it has to put its
+ * own lights back. Sending a cell that is already the right colour changes nothing
+ * on the instrument, so this is safe to call as often as we like.
+ */
+export function refreshInstrumentLights() {
+  for (const note of activeNotes) {
+    highlightInstrument(note, ext.config.guideHighlightColor)
+  }
 }
 
 /** Stopping mid-note would otherwise leave pads lit */

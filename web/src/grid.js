@@ -1,5 +1,16 @@
 import { highlightInstrumentXY } from "./main.js"
-import { layoutGrid, uniformGrid, gridToDict } from "./layout.js"
+import { layoutGrid, uniformGrid, gridToDict, splitOf } from "./layout.js"
+
+/** LinnStrument color numbers, as used by its CC 22 and by the config dropdowns */
+export const ledColors = ['per-note', 'red', 'yellow', 'green', 'cyan', 'blue', 'magenta', 'off', 'white', 'orange', 'lime', 'pink']
+
+/** Color setting meaning "whatever the LinnStrument is set to", beyond its own color numbers */
+export const COLOR_FROM_DEVICE = 12
+
+/** CSS class for a LinnStrument color number */
+export function ledClass(color) {
+  return `led-${ledColors[color] ?? color}`
+}
 
 /**
  * Build the grid (grid[x][y] = MIDI note, -1 for no pitch).
@@ -36,8 +47,42 @@ export function resetGrid() {
     }
   }
 
-  // Reset all highlights on visualization
-  document.querySelectorAll('.highlight').forEach(e => e.remove());
+  // Reset guide and played highlights on visualization, but keep the note lights
+  document.querySelectorAll('.highlight-guide, .highlight-played').forEach(e => e.remove());
+}
+
+/**
+ * Main, accent and played colors the device uses for the split this column is in.
+ * These are per split settings, so the two halves can differ.
+ */
+function splitColorsFor(layout, x) {
+  const lights = window.ext.noteLights
+  if (!lights || !layout) {
+    return null
+  }
+  return lights.splitColors[splitOf(layout, x + 1)] || lights.splitColors[0]
+}
+
+/**
+ * The color the LinnStrument itself lights this pad with, as a LinnStrument
+ * color number, or 0 when the note is not lit. Accent notes win over main ones.
+ */
+function noteLightColor(noteNumber, x, layout) {
+  const lights = window.ext.noteLights
+  const colors = splitColorsFor(layout, x)
+  if (!colors || noteNumber < 0 || noteNumber > 127) {
+    return 0
+  }
+  const pitchClass = noteNumber % 12
+  if (lights.accent[pitchClass]) return colors.accent
+  if (lights.main[pitchClass]) return colors.main
+  return 0
+}
+
+/** The device's own Color Played for this column's split, falling back to red */
+export function devicePlayedColor(x) {
+  const colors = splitColorsFor(window.ext.deviceLayout, x)
+  return colors && colors.played ? colors.played : 1
 }
 
 export function drawGrid(grid) {
@@ -45,6 +90,8 @@ export function drawGrid(grid) {
   const layout = window.ext.deviceLayout
   const rightSplitStartX = layout && layout.splitActive ? layout.splitPoint - 1 : -1
   const v = document.getElementById('visualization')
+  // Note lights read from the device replace the built in note name tinting
+  v.className = layout && window.ext.noteLights ? 'note-lights' : ''
   v.innerHTML = ''
   const cols = grid[0].length
   const rows = grid.length
@@ -73,6 +120,13 @@ export function drawGrid(grid) {
       cellEl.className = `cell note-number-${noteNumber} note-name-${noteClass}${x === rightSplitStartX ? ' split-start' : ''}`
       cellEl.style = `height: ${padSize}px; width: ${padSize}px;`
       cellEl.textContent = noteName
+
+      const lightColor = noteLightColor(noteNumber, x, layout)
+      if (lightColor) {
+        const lightEl = document.createElement('span')
+        lightEl.className = `highlight highlight-base ${ledClass(lightColor)}`
+        cellEl.appendChild(lightEl)
+      }
 
       columnEl.appendChild(cellEl)
     }
