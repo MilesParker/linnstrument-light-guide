@@ -142,7 +142,7 @@
                 </select>
 
                 <label for="stepHoldColor" class="form-label">Step: Held Note Color</label>
-                <select id="stepHoldColor" class="form-select" data-bs-toggle="tooltip" data-bs-placement="right" title="Step mode only. Color for a note that was struck on an earlier step and is only to be held now, so it can be told apart from a note to strike. Off lights it in the Light Guide color, as it was before.">
+                <select id="stepHoldColor" class="form-select" data-bs-toggle="tooltip" data-bs-placement="right" title="Step mode only. Color for a note that is not to be lifted, whether struck now or on an earlier step. The Light Guide color then means a note to strike and release. Off lights both the same.">
                   <option value="7">Off (use Light Guide color)</option>
                   <option value="1">Red</option>
                   <option value="2">Yellow</option>
@@ -159,6 +159,21 @@
                 <label for="stepNextColor" class="form-label">Step: Next Step Color</label>
                 <select id="stepNextColor" class="form-select" data-bs-toggle="tooltip" data-bs-placement="right" title="Step mode only. Lights what the next step will strike, as a look ahead. These are not notes to play yet: the step does not wait for them and they do not count towards the statistics.">
                   <option value="7">Off (no look ahead)</option>
+                  <option value="1">Red</option>
+                  <option value="2">Yellow</option>
+                  <option value="3">Green</option>
+                  <option value="4">Cyan</option>
+                  <option value="5">Blue</option>
+                  <option value="6">Magenta</option>
+                  <option value="8">White</option>
+                  <option value="9">Orange</option>
+                  <option value="10">Lime</option>
+                  <option value="11">Pink</option>
+                </select>
+
+                <label for="stepErrorColor" class="form-label">Step: Wrongly Held Color</label>
+                <select id="stepErrorColor" class="form-select" data-bs-toggle="tooltip" data-bs-placement="right" title="Step mode only. Lights a pad you are holding that the current step has no note for, so you can see what to lift. The LinnStrument lights pads you touch with its own COLOR / PLAYED, so turn that off to see this.">
+                  <option value="7">Off</option>
                   <option value="1">Red</option>
                   <option value="2">Yellow</option>
                   <option value="3">Green</option>

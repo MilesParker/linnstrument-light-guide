@@ -83,7 +83,7 @@ export function resetGrid() {
   }
 
   // Reset guide, look ahead and played highlights on visualization, but keep the note lights
-  document.querySelectorAll('.highlight-guide, .highlight-preview, .highlight-played').forEach(e => e.remove());
+  document.querySelectorAll('.highlight-guide, .highlight-preview, .highlight-error, .highlight-played').forEach(e => e.remove());
   document.querySelectorAll('.step-sustains, .step-restrike').forEach(e => {
     e.classList.remove('step-sustains', 'step-restrike')
   });

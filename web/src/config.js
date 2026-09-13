@@ -33,6 +33,8 @@ export const defaultConfig = {
   stepHoldColor: 4,
   /** Color for the notes the next step strikes, lit while still dark. Off shows no look ahead. */
   stepNextColor: 5,
+  /** Color for a pad held that the step has no note for. Off leaves a stray note unmarked. */
+  stepErrorColor: 1,
   /** Outline lit pads on the visualization by what becomes of them on the next step */
   stepFutureOutlines: 1,
   showFeedback: 1,
@@ -117,6 +119,7 @@ export function updateSettingsInUI(config) {
   setField('playedHighlightColor', config.playedHighlightColor)
   setField('stepHoldColor', config.stepHoldColor)
   setField('stepNextColor', config.stepNextColor)
+  setField('stepErrorColor', config.stepErrorColor)
   setField('stepFutureOutlines', config.stepFutureOutlines)
   setField('linnStrumentSize', config.linnStrumentSize)
   setField('delayedNoteThreshold', config.delayedNoteThreshold)
@@ -143,6 +146,7 @@ function configFromUI() {
     playedHighlightColor: parseInt(document.getElementById("playedHighlightColor").value),
     stepHoldColor: parseInt(document.getElementById("stepHoldColor").value),
     stepNextColor: parseInt(document.getElementById("stepNextColor").value),
+    stepErrorColor: parseInt(document.getElementById("stepErrorColor").value),
     stepFutureOutlines: parseInt(document.getElementById("stepFutureOutlines").value),
     linnStrumentSize: parseInt(document.getElementById("linnStrumentSize").value),
     delayedNoteThreshold: parseInt(document.getElementById("delayedNoteThreshold").value),

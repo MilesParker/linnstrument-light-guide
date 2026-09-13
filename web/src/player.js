@@ -42,6 +42,8 @@ let speedIndex = FULL_SPEED
 const activeNotes = new Map()
 /** Notes lit only as a look ahead to the next step, note -> { color, side } */
 const previewNotes = new Map()
+/** Notes lit as held when the step does not want them, note -> the side lit for it */
+const strayNotes = new Map()
 
 /** Chords to step through, rebuilt for each loaded file */
 let steps = []
@@ -301,6 +303,7 @@ function showStep() {
   const current = ++generation
 
   clearPreview()
+  clearStrayNotes()
 
   for (const note of lit) {
     if (!step.notes.includes(note)) {
@@ -308,7 +311,7 @@ function showStep() {
     }
   }
   for (const note of step.notes) {
-    const color = step.onsets.includes(note) ? pressColor() : holdColor()
+    const color = sustains(note, step, next) ? holdColor() : pressColor()
     const side = sideOf(step.parts.get(note))
     if (!lit.has(note)) {
       lightOn(note, 1, 100, color, side) // note starts on this step
@@ -327,6 +330,7 @@ function showStep() {
 
   showPreview(step, next)
   markFutures(step, next)
+  updateStrayNotes()
 
   stepStartedAt = performance.now()
 }
@@ -335,16 +339,16 @@ function showStep() {
 // STEP COLORS                          //
 //////////////////////////////////////////
 
-// The three colors a pad can carry in step mode. Only the press color is a plain
+// The colors a pad can carry in step mode. Only the press color is a plain
 // setting; the others fall back rather than going dark when switched off, so
 // turning one off leaves step mode looking exactly as it did without it.
 
-/** Notes this step strikes, which is what the Light Guide color has always meant */
+/** Notes this step strikes and lets go of again, which is what the Light Guide color has always meant */
 function pressColor() {
   return ext.config.guideHighlightColor
 }
 
-/** Notes struck on an earlier step, to be held rather than played again */
+/** Notes that are not to be lifted, whether struck now or on an earlier step */
 function holdColor() {
   const color = ext.config.stepHoldColor
   return color === COLOR_OFF ? pressColor() : color
@@ -353,6 +357,26 @@ function holdColor() {
 /** Notes the next step strikes, lit while still dark, as a look ahead */
 function previewColor() {
   return ext.config.stepNextColor
+}
+
+/** Notes being held that this step does not want, so the pad to lift is visible */
+function errorColor() {
+  return ext.config.stepErrorColor
+}
+
+/**
+ * Whether a note reaches past the step it is lit on, in either direction. Both mean
+ * the same thing to the player — do not lift this — so the pad carries the hold color
+ * from the moment it lights rather than changing under the finger a step later.
+ *
+ * A note the next step strikes again is not one of these: it has to come up to be
+ * played afresh.
+ */
+function sustains(note, step, next) {
+  if (!step.onsets.includes(note)) {
+    return true
+  }
+  return !!next && next.notes.includes(note) && !next.onsets.includes(note)
 }
 
 /**
@@ -419,9 +443,62 @@ function clearFutureMarks() {
   })
 }
 
+/**
+ * Light the pads being held that the step has no note for, so a finger left behind
+ * shows up as the thing to lift. A step never waits on these, but they still matter:
+ * where the next step strikes that note again, the held finger blocks the press that
+ * would advance, which just looks like a step that will not move on.
+ *
+ * Run on every poll, since what is held changes while a step is being worked out.
+ */
+function updateStrayNotes() {
+  const color = errorColor()
+  const step = steps[stepIndex]
+  const stray = new Set()
+
+  if (step && color !== COLOR_OFF) {
+    for (const note of ext.heldNotes) {
+      if (!step.notes.includes(note)) {
+        stray.add(note)
+      }
+    }
+  }
+
+  for (const note of stray) {
+    if (strayNotes.has(note)) continue
+    // Over the look ahead's own pad where there is one, so it is replaced rather
+    // than left lit somewhere else for the same note
+    const side = previewNotes.get(note)?.side ?? null
+    strayNotes.set(note, side)
+    highlightInstrument(note, color, side)
+    highlightVisualization(note, color, 'error', true, side)
+  }
+  for (const [note, side] of [...strayNotes]) {
+    if (stray.has(note)) continue
+    strayNotes.delete(note)
+    // Back to whatever the pad was showing underneath, which is a look ahead or nothing
+    highlightInstrument(note, previewNotes.get(note)?.color ?? 0, side)
+    highlightVisualization(note, 0, 'error', false, side)
+  }
+}
+
+/**
+ * Put out the stray lights without restoring anything under them, for a step
+ * change, which repaints every pad it wants from scratch straight afterwards.
+ */
+function clearStrayNotes() {
+  for (const [note, side] of [...strayNotes]) {
+    strayNotes.delete(note)
+    highlightInstrument(note, 0, side)
+    highlightVisualization(note, 0, 'error', false, side)
+  }
+}
+
 /** Move on once every note of the current step is actually held down */
 function checkStep() {
   const step = steps[stepIndex]
+
+  updateStrayNotes()
 
   for (const note of step.notes) {
     if (isPlayable(note) && !ext.heldNotes.has(note)) return
@@ -511,6 +588,9 @@ export function refreshInstrumentLights() {
   for (const [note, { color, side }] of [...activeNotes, ...previewNotes]) {
     highlightInstrument(note, color, side)
   }
+  for (const [note, side] of strayNotes) {
+    highlightInstrument(note, errorColor(), side)
+  }
 }
 
 /** Stopping mid-note would otherwise leave pads lit */
@@ -519,6 +599,7 @@ function allNotesOff() {
     lightOff(note)
   }
   clearPreview()
+  clearStrayNotes()
   clearFutureMarks()
 }
 

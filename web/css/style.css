@@ -379,8 +379,12 @@ select, input {
   top: 19%;
   margin: 0;
 }
-/* One color per pad: a guide note beats a played note beats a look ahead
-   beats the note light */
+/* One color per pad: a pad held in error beats a guide note beats a played note
+   beats a look ahead beats the note light */
+#visualization .cell:has(.highlight-error) .highlight-guide,
+#visualization .cell:has(.highlight-error) .highlight-played,
+#visualization .cell:has(.highlight-error) .highlight-preview,
+#visualization .cell:has(.highlight-error) .highlight-base,
 #visualization .cell:has(.highlight-guide) .highlight-played,
 #visualization .cell:has(.highlight-guide) .highlight-preview,
 #visualization .cell:has(.highlight-guide) .highlight-base,
