@@ -2,6 +2,7 @@ import { log } from "./log.js";
 import { initConfig, resetConfig, saveConfig, updateSettingsInUI } from "./config.js";
 import { resetGrid, getGridDict, generateGrid, drawGrid } from "./grid.js";
 import { ROWOFFSET_OCTAVECUSTOM, ROWOFFSET_GUITAR } from "./layout.js";
+import { registerPlayerEvents } from "./player.js";
 import { measureNoteTiming, calculateStatistics, logGuideNoteTiming } from "./statistics.js";
 import { createMidiInputRecording, exportMidiInputRecording } from "./recorder.js";
 
@@ -38,6 +39,8 @@ export const ext = {
   },
   /** Layout read from the LinnStrument (see layout.js), null until detected */
   deviceLayout: null,
+  /** Notes currently held down on the instrument, which is what step mode waits for */
+  heldNotes: new Set(),
   fn: {
     resetGrid,
     resetConfig,
@@ -62,6 +65,7 @@ async function init() {
   ext.config = initConfig()
 
   // Setup MIDI callbacks / event listeners
+  registerPlayerEvents()
   await registerUiEvents()
   await registerMidiEvents()
 
@@ -145,6 +149,7 @@ async function registerMidiEvents() {
           time: performance.now(),
           noteNumber: msg.note.number,
         })
+        ext.heldNotes.add(msg.note.number)
         highlightVisualization(noteNumber, ext.config.playedHighlightColor)
 
         // Add it to MIDI input recording
@@ -153,6 +158,7 @@ async function registerMidiEvents() {
       });
       ext.input.addListener("noteoff", (msg) => {
         highlightVisualization(msg.dataBytes[0], 0)
+        ext.heldNotes.delete(msg.note.number)
 
         // Add it to MIDI input recording
         const jzzMsg = JZZ.MIDI.noteOff(msg.message.channel, msg.note.number, msg.rawVelocity)
@@ -199,6 +205,7 @@ async function registerMidiEvents() {
           time: performance.now(),
           noteNumber: msg.note.number,
         })
+        ext.heldNotes.add(msg.note.number)
         highlightVisualization(noteNumber, ext.config.playedHighlightColor)
 
         // Add it to MIDI input recording
@@ -207,6 +214,7 @@ async function registerMidiEvents() {
       });
       ext.input2.addListener("noteoff", (msg) => {
         highlightVisualization(msg.dataBytes[0], 0)
+        ext.heldNotes.delete(msg.note.number)
 
         // Add it to MIDI input recording
         const jzzMsg = JZZ.MIDI.noteOff(msg.message.channel, msg.note.number, msg.rawVelocity)
@@ -270,27 +278,10 @@ async function registerMidiEvents() {
 
       // Support "typical" Light Guide where noteon / noteoff MIDI events are used
       ext.lightGuideInput.addListener("noteon", async (msg) => {
-        const noteNumber = msg.dataBytes[0]
-        highlightInstrument(noteNumber, ext.config.guideHighlightColor)
-        highlightVisualization(noteNumber, ext.config.guideHighlightColor, 'guide', true)
-
-        if (ext.config.guideNoteStatistics) {
-          const timing = await measureNoteTiming(noteNumber)
-          logGuideNoteTiming(timing)
-        }
-
-        // Add it to MIDI input recording
-        const jzzMsg = JZZ.MIDI.noteOn(msg.message.channel, msg.note.number, msg.rawVelocity)
-        ext.recording.guideInput.track.add(ext.recording.tick, jzzMsg);
+        await guideNoteOn(msg.dataBytes[0], msg.message.channel, msg.rawVelocity)
       });
       ext.lightGuideInput.addListener("noteoff", (msg) => {
-        const noteNumber = msg.dataBytes[0]
-        highlightInstrument(noteNumber, 0)
-        highlightVisualization(noteNumber, 0, 'guide')
-
-        // Add it to MIDI input recording
-        const jzzMsg = JZZ.MIDI.noteOff(msg.message.channel, msg.note.number, msg.rawVelocity)
-        ext.recording.guideInput.track.add(ext.recording.tick, jzzMsg);
+        guideNoteOff(msg.dataBytes[0], msg.message.channel, msg.rawVelocity)
       });
 
       // Support Synthesia Proprietary 1 (ONE Smart Piano) Light Guide input
@@ -370,6 +361,31 @@ async function registerMidiEvents() {
 /**
  * Highlight pads on instrument by note number and color
  */
+/**
+ * Handle an incoming Light Guide note-on, from a MIDI port or the file player.
+ */
+export async function guideNoteOn(noteNumber, channel = 1, velocity = 100) {
+  highlightInstrument(noteNumber, ext.config.guideHighlightColor)
+  highlightVisualization(noteNumber, ext.config.guideHighlightColor, 'guide', true)
+
+  if (ext.config.guideNoteStatistics) {
+    const timing = await measureNoteTiming(noteNumber)
+    logGuideNoteTiming(timing)
+  }
+
+  const jzzMsg = JZZ.MIDI.noteOn(channel, noteNumber, velocity)
+  ext.recording.guideInput.track.add(ext.recording.tick, jzzMsg);
+}
+
+/** Handle an incoming Light Guide note-off. */
+export function guideNoteOff(noteNumber, channel = 1, velocity = 0) {
+  highlightInstrument(noteNumber, 0)
+  highlightVisualization(noteNumber, 0, 'guide')
+
+  const jzzMsg = JZZ.MIDI.noteOff(channel, noteNumber, velocity)
+  ext.recording.guideInput.track.add(ext.recording.tick, jzzMsg);
+}
+
 export function highlightInstrument(noteNumber, color) {
   const noteCoords = ext.gridDict[noteNumber]
   if (noteCoords) {
