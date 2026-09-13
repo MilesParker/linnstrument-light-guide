@@ -38,6 +38,10 @@
   --ls-key-led-go: #3ddc6b;
   --ls-key-led-stop: #ff5a5a;
   --ls-key-led-active: #4da3ff;
+
+  /* Step mode: what becomes of a lit pad on the next step */
+  --ls-step-sustain: rgba(20, 24, 20, 0.5);
+  --ls-step-restrike: rgba(20, 24, 20, 0.7);
 }
 
 body {
@@ -366,10 +370,14 @@ select, input {
   top: 19%;
   margin: 0;
 }
-/* One color per pad: a guide note beats a played note beats the note light */
+/* One color per pad: a guide note beats a played note beats a look ahead
+   beats the note light */
 #visualization .cell:has(.highlight-guide) .highlight-played,
+#visualization .cell:has(.highlight-guide) .highlight-preview,
 #visualization .cell:has(.highlight-guide) .highlight-base,
-#visualization .cell:has(.highlight-played) .highlight-base {
+#visualization .cell:has(.highlight-played) .highlight-preview,
+#visualization .cell:has(.highlight-played) .highlight-base,
+#visualization .cell:has(.highlight-preview) .highlight-base {
   display: none;
 }
 #visualization .led-red { --ls-led: 255 45 40; }
@@ -383,6 +391,17 @@ select, input {
 #visualization .led-orange { --ls-led: 255 120 25; }
 #visualization .led-lime { --ls-led: 160 255 60; }
 #visualization .led-pink { --ls-led: 255 150 200; }
+
+/* Step mode: a lit pad the next step holds on to, or strikes again. Colors are
+   taken by the three step colors already, so this dimension is an outline. */
+#visualization .cell.step-sustains {
+  outline: 3px solid var(--ls-step-sustain);
+  outline-offset: -3px;
+}
+#visualization .cell.step-restrike {
+  outline: 3px dashed var(--ls-step-restrike);
+  outline-offset: -3px;
+}
 
 #visualization .played-out-of-time {
   border: 3px solid #b61a1a;

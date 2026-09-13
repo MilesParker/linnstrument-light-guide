@@ -7,6 +7,9 @@ export const ledColors = ['per-note', 'red', 'yellow', 'green', 'cyan', 'blue', 
 /** Color setting meaning "whatever the LinnStrument is set to", beyond its own color numbers */
 export const COLOR_FROM_DEVICE = 12
 
+/** The palette's "off" entry, which the step mode color settings use to mean "as before" */
+export const COLOR_OFF = 7
+
 /** CSS class for a LinnStrument color number */
 export function ledClass(color) {
   return `led-${ledColors[color] ?? color}`
@@ -47,8 +50,11 @@ export function resetGrid() {
     }
   }
 
-  // Reset guide and played highlights on visualization, but keep the note lights
-  document.querySelectorAll('.highlight-guide, .highlight-played').forEach(e => e.remove());
+  // Reset guide, look ahead and played highlights on visualization, but keep the note lights
+  document.querySelectorAll('.highlight-guide, .highlight-preview, .highlight-played').forEach(e => e.remove());
+  document.querySelectorAll('.step-sustains, .step-restrike').forEach(e => {
+    e.classList.remove('step-sustains', 'step-restrike')
+  });
 }
 
 /**

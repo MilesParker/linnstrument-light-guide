@@ -359,9 +359,9 @@ async function registerMidiEvents() {
 /**
  * Handle an incoming Light Guide note-on, from a MIDI port or the file player.
  */
-export async function guideNoteOn(noteNumber, channel = 1, velocity = 100) {
-  highlightInstrument(noteNumber, ext.config.guideHighlightColor)
-  highlightVisualization(noteNumber, ext.config.guideHighlightColor, 'guide', true)
+export async function guideNoteOn(noteNumber, channel = 1, velocity = 100, color = ext.config.guideHighlightColor) {
+  highlightInstrument(noteNumber, color)
+  highlightVisualization(noteNumber, color, 'guide', true)
 
   if (ext.config.guideNoteStatistics) {
     const timing = await measureNoteTiming(noteNumber)
@@ -379,6 +379,16 @@ export function guideNoteOff(noteNumber, channel = 1, velocity = 0) {
 
   const jzzMsg = JZZ.MIDI.noteOff(channel, noteNumber, velocity)
   ext.recording.guideInput.track.add(ext.recording.tick, jzzMsg);
+}
+
+/**
+ * Change the color of a guide note that is already lit. The note itself does not
+ * change, so this is deliberately not a note off / note on pair: it must not be
+ * measured or recorded again.
+ */
+export function recolorGuideNote(noteNumber, color) {
+  highlightInstrument(noteNumber, color)
+  highlightVisualization(noteNumber, color, 'guide', true)
 }
 
 export function highlightInstrument(noteNumber, color) {
@@ -416,12 +426,14 @@ export function highlightVisualization(noteNumber, color, type = "played", big =
       const y = noteCoord[1]
       const padColor = color === COLOR_FROM_DEVICE ? devicePlayedColor(x) : color
 
-      if (padColor === 0) {
-        const cell = document.getElementById(`highlight-${type}-${x}-${y}`)
-        if (cell) {
-          cell.parentNode.removeChild(cell);
-        }
-      } else {
+      // Clear first either way, so recoloring a lit pad replaces its LED
+      // rather than leaving a second one stacked underneath
+      const lit = document.getElementById(`highlight-${type}-${x}-${y}`)
+      if (lit) {
+        lit.parentNode.removeChild(lit);
+      }
+
+      if (padColor !== 0) {
         const cell = document.getElementById(`cell-${x}-${y}`)
         const size = cell.offsetWidth
 

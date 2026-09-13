@@ -8,7 +8,8 @@
  * time and waits until that chord has actually been played (see buildSteps).
  */
 
-import { ext, guideNoteOn, guideNoteOff, highlightInstrument } from "./main.js"
+import { ext, guideNoteOn, guideNoteOff, highlightInstrument, highlightVisualization, recolorGuideNote } from "./main.js"
+import { COLOR_OFF } from "./grid.js"
 import { log } from "./log.js"
 
 const DRUM_CHANNEL = 9 // GM channel 10, zero-based
@@ -25,8 +26,10 @@ const RESTRIKE_BLINK = 90
 const CHORD_FRACTION = 16
 
 let player = null
-/** Notes currently lit by the player, so Stop can clear exactly those */
-const activeNotes = new Set()
+/** Notes currently lit by the player as guide notes, note -> LinnStrument color */
+const activeNotes = new Map()
+/** Notes lit only as a look ahead to the next step, note -> LinnStrument color */
+const previewNotes = new Map()
 
 /** Chords to step through, rebuilt for each loaded file */
 let steps = []
@@ -208,11 +211,18 @@ function startStepMode() {
   log.info(`Step mode: play the lit notes to advance, ${steps.length} steps in total.`)
 }
 
-/** Light the current step, leaving held notes alone and blinking re-struck ones */
+/**
+ * Light the current step, leaving held notes alone and blinking re-struck ones.
+ * Strikes, holds and the next step's notes get their own colors, so a lit pad says
+ * what to do with it rather than only that it is part of the step.
+ */
 function showStep() {
   const step = steps[stepIndex]
-  const lit = new Set(activeNotes)
+  const next = steps[stepIndex + 1]
+  const lit = new Set(activeNotes.keys())
   const current = ++generation
+
+  clearPreview()
 
   for (const note of lit) {
     if (!step.notes.includes(note)) {
@@ -220,22 +230,112 @@ function showStep() {
     }
   }
   for (const note of step.notes) {
+    const color = step.onsets.includes(note) ? pressColor() : holdColor()
     if (!lit.has(note)) {
-      lightOn(note) // note starts on this step
+      lightOn(note, 1, 100, color) // note starts on this step
+    } else if (step.onsets.includes(note)) {
+      // Lit note struck again: go dark briefly, or it reads as a note to keep holding
+      lightOff(note)
+      setTimeout(() => {
+        if (current === generation) {
+          lightOn(note, 1, 100, color)
+        }
+      }, RESTRIKE_BLINK)
+    } else {
+      recolor(note, color) // struck on an earlier step, only held from here on
     }
   }
-  for (const note of step.onsets) {
-    if (!lit.has(note)) continue
-    // Lit note struck again: go dark briefly, or it reads as a note to keep holding
-    lightOff(note)
-    setTimeout(() => {
-      if (current === generation) {
-        lightOn(note)
-      }
-    }, RESTRIKE_BLINK)
-  }
+
+  showPreview(step, next)
+  markFutures(step, next)
 
   stepStartedAt = performance.now()
+}
+
+//////////////////////////////////////////
+// STEP COLORS                          //
+//////////////////////////////////////////
+
+// The three colors a pad can carry in step mode. Only the press color is a plain
+// setting; the others fall back rather than going dark when switched off, so
+// turning one off leaves step mode looking exactly as it did without it.
+
+/** Notes this step strikes, which is what the Light Guide color has always meant */
+function pressColor() {
+  return ext.config.guideHighlightColor
+}
+
+/** Notes struck on an earlier step, to be held rather than played again */
+function holdColor() {
+  const color = ext.config.stepHoldColor
+  return color === COLOR_OFF ? pressColor() : color
+}
+
+/** Notes the next step strikes, lit while still dark, as a look ahead */
+function previewColor() {
+  return ext.config.stepNextColor
+}
+
+/**
+ * Light the notes the next step strikes, so the hands can be on their way.
+ *
+ * These are not notes to play yet, so they bypass guideNoteOn: counted as guide notes
+ * they would be measured in the timing statistics and recorded a step too early.
+ * Only notes that are dark right now; markFutures covers the rest.
+ */
+function showPreview(step, next) {
+  const color = previewColor()
+  if (!next || color === COLOR_OFF) {
+    return
+  }
+  for (const note of next.onsets) {
+    if (step.notes.includes(note)) continue
+    previewNotes.set(note, color)
+    highlightInstrument(note, color)
+    highlightVisualization(note, color, 'preview')
+  }
+}
+
+function clearPreview() {
+  for (const note of [...previewNotes.keys()]) {
+    previewNotes.delete(note)
+    highlightInstrument(note, 0)
+    highlightVisualization(note, 0, 'preview')
+  }
+}
+
+/**
+ * Outline the lit pads by what becomes of them on the next step: held on, or struck
+ * again. A pad is a single color on the instrument, so showing this there would cover
+ * up whether the note is to be struck or held now, which matters more.
+ */
+function markFutures(step, next) {
+  clearFutureMarks()
+  if (!next || !ext.config.stepFutureOutlines) {
+    return
+  }
+  for (const note of step.notes) {
+    if (next.onsets.includes(note)) {
+      markCells(note, 'step-restrike')
+    } else if (next.notes.includes(note)) {
+      markCells(note, 'step-sustains')
+    }
+  }
+}
+
+function markCells(note, className) {
+  for (const [x, y] of ext.gridDict[note] ?? []) {
+    const cell = document.getElementById(`cell-${x}-${y}`)
+    if (cell) {
+      cell.classList.add(className)
+    }
+  }
+}
+
+function clearFutureMarks() {
+  document.querySelectorAll('.step-sustains, .step-restrike').forEach((el) => {
+    el.classList.remove('step-sustains', 'step-restrike')
+  })
 }
 
 /** Move on once every note of the current step is actually held down */
@@ -280,14 +380,23 @@ function pressedOnThisStep(note) {
 // HELPER FUNCTIONS                     //
 //////////////////////////////////////////
 
-function lightOn(note, channel = 1, velocity = 100) {
-  activeNotes.add(note)
-  guideNoteOn(note, channel, velocity)
+function lightOn(note, channel = 1, velocity = 100, color = ext.config.guideHighlightColor) {
+  activeNotes.set(note, color)
+  guideNoteOn(note, channel, velocity, color)
 }
 
 function lightOff(note, channel = 1, velocity = 0) {
   activeNotes.delete(note)
   guideNoteOff(note, channel, velocity)
+}
+
+/** Repaint a note that is already lit, which is not a note of its own */
+function recolor(note, color) {
+  if (activeNotes.get(note) === color) {
+    return
+  }
+  activeNotes.set(note, color)
+  recolorGuideNote(note, color)
 }
 
 /**
@@ -302,16 +411,18 @@ function lightOff(note, channel = 1, velocity = 0) {
  * on the instrument, so this is safe to call as often as we like.
  */
 export function refreshInstrumentLights() {
-  for (const note of activeNotes) {
-    highlightInstrument(note, ext.config.guideHighlightColor)
+  for (const [note, color] of [...activeNotes, ...previewNotes]) {
+    highlightInstrument(note, color)
   }
 }
 
 /** Stopping mid-note would otherwise leave pads lit */
 function allNotesOff() {
-  for (const note of [...activeNotes]) {
+  for (const note of [...activeNotes.keys()]) {
     lightOff(note)
   }
+  clearPreview()
+  clearFutureMarks()
 }
 
 /** JZZ.MIDI.SMF expects a binary string; chunked to avoid blowing the stack */

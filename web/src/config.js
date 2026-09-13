@@ -17,6 +17,17 @@ export const defaultConfig = {
 
   playedHighlightColor: 12,
   guideHighlightColor: 6,
+  /**
+   * Step mode only. Each of these says what to do with a lit pad beyond it simply
+   * being part of the step, and each falls back to how step mode looked without it
+   * when switched off, rather than leaving a pad dark that used to be lit.
+   */
+  /** Color for a note struck on an earlier step and only held now. Off reuses guideHighlightColor. */
+  stepHoldColor: 4,
+  /** Color for the notes the next step strikes, lit while still dark. Off shows no look ahead. */
+  stepNextColor: 5,
+  /** Outline lit pads on the visualization by what becomes of them on the next step */
+  stepFutureOutlines: 1,
   showFeedback: 1,
   linnStrumentSize: 128,
   rowOffset: 5,
@@ -95,6 +106,9 @@ export function updateSettingsInUI(config) {
   setField('showFeedback', config.showFeedback)
   setField('guideHighlightColor', config.guideHighlightColor)
   setField('playedHighlightColor', config.playedHighlightColor)
+  setField('stepHoldColor', config.stepHoldColor)
+  setField('stepNextColor', config.stepNextColor)
+  setField('stepFutureOutlines', config.stepFutureOutlines)
   setField('linnStrumentSize', config.linnStrumentSize)
   setField('delayedNoteThreshold', config.delayedNoteThreshold)
   setField('missedNoteThreshold', config.missedNoteThreshold)
@@ -116,6 +130,9 @@ function configFromUI() {
     showFeedback: parseInt(document.getElementById("showFeedback").value),
     guideHighlightColor: parseInt(document.getElementById("guideHighlightColor").value),
     playedHighlightColor: parseInt(document.getElementById("playedHighlightColor").value),
+    stepHoldColor: parseInt(document.getElementById("stepHoldColor").value),
+    stepNextColor: parseInt(document.getElementById("stepNextColor").value),
+    stepFutureOutlines: parseInt(document.getElementById("stepFutureOutlines").value),
     linnStrumentSize: parseInt(document.getElementById("linnStrumentSize").value),
     delayedNoteThreshold: parseInt(document.getElementById("delayedNoteThreshold").value),
     missedNoteThreshold: parseInt(document.getElementById("missedNoteThreshold").value),
