@@ -19,13 +19,24 @@ const STEP_POLL_INTERVAL = 25
 /** How long a re-struck note goes dark before lighting up again (in ms) */
 const RESTRIKE_BLINK = 90
 /**
- * Notes starting within this fraction of a beat belong to the same step.
- * 1/16th of a beat is a 64th note, below any division worth stepping to, so this
- * only ever merges notes meant to sound together.
+ * Notes starting within this fraction of a beat belong to the same step. 1/16th of a
+ * beat is a 64th note, below any division worth stepping to, so this only merges
+ * notes meant to sound together.
  */
 const CHORD_FRACTION = 16
 
+/**
+ * Playback speeds, as a fraction of the file's own tempo. Coarse further down, where
+ * a passage is taken right back to learn it, finer around full speed where it is
+ * worked back up.
+ */
+const SPEEDS = [0.25, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.25, 1.5, 2]
+const FULL_SPEED = SPEEDS.indexOf(1)
+/** Kept out of the config: it belongs to the song being learned, not the setup */
+const SPEED_KEY = 'playerSpeed'
+
 let player = null
+let speedIndex = FULL_SPEED
 /** Notes currently lit by the player as guide notes, note -> LinnStrument color */
 const activeNotes = new Map()
 /** Notes lit only as a look ahead to the next step, note -> LinnStrument color */
@@ -45,10 +56,39 @@ export function registerPlayerEvents() {
   const stopEl = document.getElementById('player-stop')
   const stepEl = document.getElementById('player-step')
   const fileLabelEl = document.getElementById('midiFileLabel')
+  const slowerEl = document.getElementById('player-slower')
+  const fasterEl = document.getElementById('player-faster')
+  const speedEl = document.getElementById('player-speed')
 
-  if (!fileEl || !playEl || !stopEl || !stepEl || !fileLabelEl) {
+  if (!fileEl || !playEl || !stopEl || !stepEl || !fileLabelEl || !slowerEl || !fasterEl || !speedEl) {
     return
   }
+
+  speedIndex = storedSpeedIndex()
+
+  /** Print the speed and dim whichever key has nowhere left to go */
+  const showSpeed = () => {
+    speedEl.textContent = `${Math.round(SPEEDS[speedIndex] * 100)}%`
+    speedEl.classList.toggle('off-tempo', speedIndex !== FULL_SPEED)
+    // Step mode is paced by whoever is playing, so there is no tempo to scale
+    slowerEl.disabled = stepEl.checked || speedIndex === 0
+    fasterEl.disabled = stepEl.checked || speedIndex === SPEEDS.length - 1
+  }
+
+  /** Takes effect on the spot, mid-song included: JZZ rebases its clock on the new speed */
+  const setSpeed = (index) => {
+    speedIndex = Math.min(SPEEDS.length - 1, Math.max(0, index))
+    localStorage.setItem(SPEED_KEY, String(SPEEDS[speedIndex]))
+    if (player) {
+      player.speed(SPEEDS[speedIndex])
+    }
+    showSpeed()
+  }
+
+  slowerEl.addEventListener('click', () => setSpeed(speedIndex - 1))
+  fasterEl.addEventListener('click', () => setSpeed(speedIndex + 1))
+  stepEl.addEventListener('change', showSpeed)
+  showSpeed()
 
   /** The label is the only visible part of the file chooser, so it carries the file name */
   const setFileLabel = (name) => {
@@ -83,11 +123,19 @@ export function registerPlayerEvents() {
     if (stepEl.checked) {
       startStepMode()
     } else {
+      // Each loaded file gets a fresh player, which starts back at full speed
+      player.speed(SPEEDS[speedIndex])
       player.play()
     }
   })
 
   stopEl.addEventListener('click', stopPlayback)
+}
+
+/** The speed left over from the last session, as long as it is still one of ours */
+function storedSpeedIndex() {
+  const index = SPEEDS.indexOf(parseFloat(localStorage.getItem(SPEED_KEY)))
+  return index === -1 ? FULL_SPEED : index
 }
 
 function loadPlayer(arrayBuffer) {

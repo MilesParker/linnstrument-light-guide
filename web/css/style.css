@@ -114,6 +114,15 @@ nav a,
   flex: 1;
   border-top: 1px solid var(--ls-edge);
 }
+/* A value printed alongside a group's name, as the instrument prints its own */
+.panel-group-value {
+  color: var(--ls-print);
+  font-variant-numeric: tabular-nums;
+}
+/* Lit while the player is off the file's own tempo, so a slowed song says so */
+.panel-group-value.off-tempo {
+  color: var(--ls-key-led-active);
+}
 .panel-group-keys {
   display: flex;
   gap: var(--ls-key-gap);
