@@ -1,48 +1,25 @@
 import { highlightInstrumentXY } from "./main.js"
+import { layoutGrid, uniformGrid, gridToDict } from "./layout.js"
 
 /**
- * Calculate the grid for the LinnStrument
- * where each MIDI note can be found by x and y coordinates
- * 
- * @param rowOffset How many half tone steps the layout has
- * @param startNoteNumber Which midi note the grid starts with (bottom left corner)
- * @returns 
+ * Build the grid (grid[x][y] = MIDI note, -1 for no pitch).
+ * Uses the layout read from the LinnStrument when available, which handles
+ * splits; otherwise falls back to the manually configured uniform layout.
  */
-export function generateGrid(startNoteNumber = 30, rowOffset = 5, colOffset = 1) {
-  const grid = []
-  const columns = ext.config.linnStrumentSize / 8
-  
-  for (let x = 0; x < columns; x++) {
-    grid[x] = []
-    for (let y = 0; y <= 7; y++) {
-      grid[x][y] = startNoteNumber + x * colOffset + (y * rowOffset)
-    }
+export function generateGrid(config, deviceLayout = null) {
+  const columns = config.linnStrumentSize / 8
+  if (deviceLayout) {
+    return layoutGrid({ ...deviceLayout, columns, colOffset: config.colOffset })
   }
-  return grid;
+  return uniformGrid(columns, config.startNoteNumber, config.rowOffset, config.colOffset)
 }
 
 /**
- * Converts a 2 dimensional grid array to a dictionary
- * that speeds up note access to where a particular note is on the grid
+ * Dictionary from note to every grid coordinate that plays it,
+ * across both splits.
  */
-export function getGridDict(grid, startNoteNumber) {
-
-  // Now create a dictionary that lists me all grid coordinates for a given note
-  // This is used to speed up the access to find the coordinates
-  const gridDict = {}
-
-  for (let note = startNoteNumber; note <= 127; note++) {
-    gridDict[note] = []
-    grid.forEach((col, x) => {
-      col.forEach((row, y) => {
-        if (grid[x][y] === note) {
-          gridDict[note].push([x, y])
-        }
-      })
-    })
-  }
-
-  return gridDict;
+export function getGridDict(grid) {
+  return gridToDict(grid)
 }
 
 /**
@@ -53,7 +30,7 @@ export function resetGrid() {
   const columns = ext.config.linnStrumentSize / 8
 
   // Reset all highlights on instrument
-  for (let x = 0; x <= columns; x++) {
+  for (let x = 0; x < columns; x++) {
     for (let y = 0; y <= 7; y++) {
       highlightInstrumentXY(x, y, 0)
     }
@@ -65,6 +42,8 @@ export function resetGrid() {
 
 export function drawGrid(grid) {
   grid = grid || window.ext.grid
+  const layout = window.ext.deviceLayout
+  const rightSplitStartX = layout && layout.splitActive ? layout.splitPoint - 1 : -1
   const v = document.getElementById('visualization')
   v.innerHTML = ''
   const cols = grid[0].length
@@ -91,7 +70,7 @@ export function drawGrid(grid) {
 
       const cellEl = document.createElement('span')
       cellEl.id = `cell-${x}-${y}`
-      cellEl.className = `cell note-number-${noteNumber} note-name-${noteClass}`
+      cellEl.className = `cell note-number-${noteNumber} note-name-${noteClass}${x === rightSplitStartX ? ' split-start' : ''}`
       cellEl.style = `height: ${padSize}px; width: ${padSize}px;`
       cellEl.textContent = noteName
 

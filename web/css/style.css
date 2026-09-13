@@ -138,3 +138,7 @@
 select, input {
   margin-bottom: .5rem;
 }
+
+#visualization .cell.split-start {
+  box-shadow: -3px 0 0 #888;
+}

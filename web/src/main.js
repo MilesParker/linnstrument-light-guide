@@ -1,6 +1,7 @@
 import { log } from "./log.js";
 import { initConfig, resetConfig, saveConfig, updateSettingsInUI } from "./config.js";
 import { resetGrid, getGridDict, generateGrid, drawGrid } from "./grid.js";
+import { ROWOFFSET_OCTAVECUSTOM, ROWOFFSET_GUITAR } from "./layout.js";
 import { measureNoteTiming, calculateStatistics, logGuideNoteTiming } from "./statistics.js";
 import { createMidiInputRecording, exportMidiInputRecording } from "./recorder.js";
 
@@ -35,6 +36,8 @@ export const ext = {
       lastStateUpdate: null,
     }
   },
+  /** Layout read from the LinnStrument (see layout.js), null until detected */
+  deviceLayout: null,
   fn: {
     resetGrid,
     resetConfig,
@@ -90,8 +93,8 @@ async function init() {
 
 async function setupGrid() {
   resetGrid()
-  ext.grid = generateGrid(ext.config.startNoteNumber, ext.config.rowOffset, ext.config.colOffset)
-  ext.gridDict = getGridDict(ext.grid, ext.config.startNoteNumber)
+  ext.grid = generateGrid(ext.config, ext.deviceLayout)
+  ext.gridDict = getGridDict(ext.grid)
   drawGrid(ext.grid)
 }
 
@@ -434,29 +437,25 @@ async function getStateFromLinnStrument() {
   
   if (ext.output && ext.input) {
     try {
-      // Split Left Octave (0: —5, 1: -4, 2: -3, 3: -2, 4: -1, 5: 0, 6: +1, 7: +2, 8: +3, 9: +4. 10: +5)
-      const splitLeftOctave = await getLinnStrumentParamValue(36);
-      // Split Left Transpose Pitch (0-6: -7 to -1, 7: 0, 8-14: +1 to +7)
-      const splitLeftTranspose = await getLinnStrumentParamValue(37);
-      // Global Row Offset (only supports, 0: No overlap, 3 4 5 6 7 12: Intervals, 13: Guitar, 127: 0 offset)
-      let rowOffset = await getLinnStrumentParamValue(227);
+      const layout = await readDeviceLayout()
 
       // Get current BPM
       ext.config.bpm = await getLinnStrumentParamValue(238);
 
-      if (rowOffset === 0) {
-        rowOffset = ext.config.linnStrumentSize / 8
-      }
-
-      let startNoteNumber = 30 + (-7 + splitLeftTranspose)
-      startNoteNumber += (-5 + splitLeftOctave) * 12
-
-      if (ext.config.rowOffset !== rowOffset || ext.config.startNoteNumber !== startNoteNumber) {
-        ext.config.rowOffset = rowOffset
-        ext.config.startNoteNumber = startNoteNumber
+      if (JSON.stringify(layout) !== JSON.stringify(ext.deviceLayout)) {
+        ext.deviceLayout = layout
         setupGrid()
+
+        // Reflect the detected bottom-left note and row interval in the manual config fields
+        const [bottom, second] = [ext.grid[0][0], ext.grid[0][1]]
+        if (bottom >= 0) ext.config.startNoteNumber = bottom
+        if (bottom >= 0 && second >= 0) ext.config.rowOffset = second - bottom
         updateSettingsInUI(ext.config)
-        log.info(`Detected state from LinnStrument: startNoteNumber=${startNoteNumber}, rowOffset=${rowOffset}, bpm=${ext.config.bpm}`)
+
+        const splitInfo = layout.splitActive
+          ? `split at column ${layout.splitPoint}, left ${describeSplit(layout.splits[0])}, right ${describeSplit(layout.splits[1])}`
+          : `no split, ${describeSplit(layout.splits[layout.selectedSplit])}`
+        log.info(`Detected state from LinnStrument: rowOffsetMode=${layout.rowOffsetMode}, ${splitInfo}, bpm=${ext.config.bpm}`)
       }
       ext.device.linnStrument.lastStateUpdate = performance.now()
     } catch (err) {
@@ -468,6 +467,55 @@ async function getStateFromLinnStrument() {
     console.warn(`Cannot get state from LinnStrument because instrument input or output device is missing.`)
     ext.device.linnStrument.lastStateUpdate = performance.now() + 3000
   }
+}
+
+/**
+ * Read everything that determines which pitch each pad plays.
+ * NRPN numbers per midi.md in the LinnStrument firmware repo;
+ * right-split parameters are the left ones + 100.
+ */
+async function readDeviceLayout() {
+  const get = getLinnStrumentParamValue
+
+  const layout = {
+    splitActive: (await get(200)) === 1,
+    selectedSplit: await get(201),
+    splitPoint: await get(202),
+    rowOffsetMode: await get(227),
+    splits: [],
+  }
+
+  for (const base of [0, 100]) {
+    const special = await get(base + 35)
+    const octave = await get(base + 36)
+    const pitch = await get(base + 37)
+    const lights = await get(base + 38)
+    layout.splits.push({
+      special,
+      transposeOctave: (octave - 5) * 12,
+      transposePitch: pitch - 7,
+      transposeLights: lights - 7,
+    })
+  }
+
+  if (layout.rowOffsetMode === ROWOFFSET_OCTAVECUSTOM) {
+    const custom = await get(253)
+    layout.customRowOffset = custom === 33 ? -17 : custom - 16
+  }
+
+  if (layout.rowOffsetMode === ROWOFFSET_GUITAR) {
+    layout.guitarTuning = []
+    for (let row = 0; row < 8; row++) {
+      layout.guitarTuning.push(await get(263 + row))
+    }
+  }
+
+  return layout
+}
+
+function describeSplit(split) {
+  const specials = ['normal', 'arp', 'faders', 'strum', 'sequencer']
+  return `(${specials[split.special] ?? split.special}, octave ${split.transposeOctave / 12}, pitch ${split.transposePitch}, lights ${split.transposeLights})`
 }
 
 async function getLinnStrumentParamValue(paramNumber) {

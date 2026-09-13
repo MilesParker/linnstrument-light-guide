@@ -1,0 +1,167 @@
+/**
+ * Pad-to-pitch mapping, ported from the LinnStrument firmware
+ * (ls_handleTouches.ino: getNoteNumber, determineRowOffsetNote,
+ * getSplitBoundaries, getSplitOf).
+ *
+ * No DOM or MIDI dependencies, so it can be tested in Node.
+ *
+ * Coordinates: x is 0-based play column (firmware col = x + 1), y is row 0-7.
+ * An invalid pad (no pitch, or out of MIDI range) is -1.
+ */
+
+export const LEFT = 0
+export const RIGHT = 1
+
+// Global Row Offset (NRPN 227) raw values
+export const ROWOFFSET_NOOVERLAP = 0
+export const ROWOFFSET_OCTAVECUSTOM = 12
+export const ROWOFFSET_GUITAR = 13
+export const ROWOFFSET_ZERO = 127
+
+// Split Special (NRPN 35 / 135)
+export const SPECIAL_OFF = 0
+export const SPECIAL_ARP = 1
+export const SPECIAL_FADERS = 2
+export const SPECIAL_STRUM = 3
+export const SPECIAL_SEQUENCER = 4
+
+/** Specials where the split's pads don't play their own pitch */
+const UNPITCHED_SPECIALS = [SPECIAL_FADERS, SPECIAL_STRUM, SPECIAL_SEQUENCER]
+
+/**
+ * Device layout as read from the LinnStrument, in firmware units.
+ *
+ * @typedef {Object} SplitState
+ * @property {number} transposeOctave  semitones, (NRPN 36 - 5) * 12
+ * @property {number} transposePitch   semitones, NRPN 37 - 7
+ * @property {number} transposeLights  semitones, NRPN 38 - 7
+ * @property {number} special          NRPN 35 raw value
+ *
+ * @typedef {Object} DeviceLayout
+ * @property {number} columns          play columns: 16 (128) or 25 (200)
+ * @property {number} colOffset        app-level column step, 1 on a stock LinnStrument
+ * @property {boolean} splitActive
+ * @property {number} splitPoint       firmware column where the right split starts (2-25)
+ * @property {number} selectedSplit    0 left, 1 right; governs the whole surface when split is off
+ * @property {number} rowOffsetMode    NRPN 227 raw value
+ * @property {number} [customRowOffset] semitones, -17 = inverted guitar (NRPN 253)
+ * @property {number[]} [guitarTuning] 8 note numbers (NRPN 263-270)
+ * @property {SplitState[]} splits     [left, right]
+ */
+
+function numCols(layout) {
+  return layout.columns + 1 // firmware NUMCOLS includes the control column
+}
+
+export function splitBoundaries(layout, split) {
+  if (layout.splitActive) {
+    return split === LEFT ? [1, layout.splitPoint] : [layout.splitPoint, numCols(layout)]
+  }
+  return [1, numCols(layout)]
+}
+
+export function splitOf(layout, col) {
+  const selectedIsSequencer = layout.splits[layout.selectedSplit].special === SPECIAL_SEQUENCER
+  if (layout.splitActive && !selectedIsSequencer) {
+    return col < layout.splitPoint ? LEFT : RIGHT
+  }
+  return layout.selectedSplit
+}
+
+export function rowBaseNote(layout, split, row) {
+  let lowest = 30
+  const mode = layout.rowOffsetMode
+
+  if (mode <= 12) {
+    let offset = mode
+    if (mode === ROWOFFSET_OCTAVECUSTOM) {
+      offset = layout.customRowOffset ?? 12
+    }
+    if (offset < 0) {
+      lowest = 65
+    }
+
+    if (mode === ROWOFFSET_NOOVERLAP) {
+      const [lowCol, highCol] = splitBoundaries(layout, split)
+      offset = highCol - lowCol
+      if (layout.splitActive && split === RIGHT) {
+        // right split starts where the left one does, like two instruments side by side
+        const [leftLow, leftHigh] = splitBoundaries(layout, LEFT)
+        lowest -= leftHigh - leftLow
+      }
+    } else if (offset === -17) { // inverted guitar
+      offset = -5
+      if (row <= 1) {
+        lowest -= 1
+      }
+    } else if (offset >= 12) {
+      lowest = 18
+    } else if (offset <= -12) {
+      lowest = 18 - 7 * offset
+    }
+
+    return lowest + row * offset
+  }
+
+  if (mode === ROWOFFSET_GUITAR) {
+    return layout.guitarTuning[row]
+  }
+
+  return lowest // ROWOFFSET_ZERO
+}
+
+/** MIDI note sent by the pad at (x, y), or -1 */
+export function padNote(layout, x, y) {
+  const col = x + 1
+  const split = splitOf(layout, col)
+  const s = layout.splits[split]
+
+  if (UNPITCHED_SPECIALS.includes(s.special)) {
+    return -1
+  }
+
+  const note = rowBaseNote(layout, split, y)
+    + (col - 1) * (layout.colOffset ?? 1)
+    - s.transposeLights
+    + s.transposePitch
+    + s.transposeOctave
+
+  return note >= 0 && note <= 127 ? note : -1
+}
+
+/** grid[x][y] = MIDI note or -1 */
+export function layoutGrid(layout) {
+  const grid = []
+  for (let x = 0; x < layout.columns; x++) {
+    grid[x] = []
+    for (let y = 0; y < 8; y++) {
+      grid[x][y] = padNote(layout, x, y)
+    }
+  }
+  return grid
+}
+
+/** Legacy uniform grid, used when the layout can't be read from the device */
+export function uniformGrid(columns, startNoteNumber, rowOffset, colOffset = 1) {
+  const grid = []
+  for (let x = 0; x < columns; x++) {
+    grid[x] = []
+    for (let y = 0; y < 8; y++) {
+      const note = startNoteNumber + x * colOffset + y * rowOffset
+      grid[x][y] = note >= 0 && note <= 127 ? note : -1
+    }
+  }
+  return grid
+}
+
+/** note -> [[x, y], ...], every pad on either split that sends that note */
+export function gridToDict(grid) {
+  const dict = {}
+  grid.forEach((column, x) => {
+    column.forEach((note, y) => {
+      if (note < 0) return
+      ;(dict[note] ??= []).push([x, y])
+    })
+  })
+  return dict
+}
