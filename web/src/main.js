@@ -471,7 +471,8 @@ async function getStateFromLinnStrument() {
         const splitInfo = layout.splitActive
           ? `split at column ${layout.splitPoint}, left ${describeSplit(layout.splits[0])}, right ${describeSplit(layout.splits[1])}`
           : `no split, ${describeSplit(layout.splits[layout.selectedSplit])}`
-        log.info(`Detected state from LinnStrument: rowOffsetMode=${layout.rowOffsetMode}, ${splitInfo}, bpm=${ext.config.bpm}`)
+        const reversedInfo = layout.reversed ? `, reversed ${ext.config.reversedSplits}` : ''
+        log.info(`Detected state from LinnStrument: rowOffsetMode=${layout.rowOffsetMode}, ${splitInfo}${reversedInfo}, bpm=${ext.config.bpm}`)
       }
       ext.device.linnStrument.lastStateUpdate = performance.now()
     } catch (err) {
@@ -498,6 +499,7 @@ async function readDeviceLayout() {
     selectedSplit: await get(201),
     splitPoint: await get(202),
     rowOffsetMode: await get(227),
+    reversed: (await get(246)) === 1,
     splits: [],
   }
 

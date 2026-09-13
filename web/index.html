@@ -86,6 +86,13 @@
                 <label for="colOffset" class="form-label">Column Offset</label>
                 <input id="colOffset" class="form-control" type="text" placeholder="1"  data-bs-toggle="tooltip" data-bs-placement="right" title="Column Offset. Not supported by LinnStrument officially.">
 
+                <label for="reversedSplits" class="form-label">Reversed Splits</label>
+                <select id="reversedSplits" class="form-select" data-bs-toggle="tooltip" data-bs-placement="right" title="Which splits left handed operation reverses (REV, REVL or REVR on the LinnStrument). Only applies when the LinnStrument reports left handed operation is on, which is auto-detected. The LinnStrument does not report which splits it applies to, so it has to be set here.">
+                  <option value="both">Both (REV)</option>
+                  <option value="left">Left only (REVL)</option>
+                  <option value="right">Right only (REVR)</option>
+                </select>
+
                 <label for="showFeedback" class="form-label">Show play statistic feedback</label>
                 <select id="showFeedback" class="form-select" data-bs-toggle="tooltip" data-bs-placement="right" title="If enabled, the feedback from comparing played notes with guide notes is shown on the visualization.">
                   <option value="0">Off</option>

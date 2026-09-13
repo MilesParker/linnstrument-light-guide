@@ -28,6 +28,11 @@ export const SPECIAL_SEQUENCER = 4
 /** Specials where the split's pads don't play their own pitch */
 const UNPITCHED_SPECIALS = [SPECIAL_FADERS, SPECIAL_STRUM, SPECIAL_SEQUENCER]
 
+// Which splits left handed operation reverses (Device.splitHandedness: REV / REVL / REVR)
+export const REVERSED_BOTH = 'both'
+export const REVERSED_LEFT = 'left'
+export const REVERSED_RIGHT = 'right'
+
 /**
  * Device layout as read from the LinnStrument, in firmware units.
  *
@@ -44,6 +49,8 @@ const UNPITCHED_SPECIALS = [SPECIAL_FADERS, SPECIAL_STRUM, SPECIAL_SEQUENCER]
  * @property {number} splitPoint       firmware column where the right split starts (2-25)
  * @property {number} selectedSplit    0 left, 1 right; governs the whole surface when split is off
  * @property {number} rowOffsetMode    NRPN 227 raw value
+ * @property {boolean} reversed        left handed operation, NRPN 246
+ * @property {string} [reversedSplits] which splits it applies to, from config (see isReversedSplit)
  * @property {number} [customRowOffset] semitones, -17 = inverted guitar (NRPN 253)
  * @property {number[]} [guitarTuning] 8 note numbers (NRPN 263-270)
  * @property {SplitState[]} splits     [left, right]
@@ -66,6 +73,21 @@ export function splitOf(layout, col) {
     return col < layout.splitPoint ? LEFT : RIGHT
   }
   return layout.selectedSplit
+}
+
+/**
+ * Whether a split plays right to left, mirroring isLeftHandedSplit() in the firmware.
+ * The LinnStrument reports that left handed operation is on, but not which splits it
+ * reverses (Device.splitHandedness has no NRPN), so that comes from config.
+ */
+export function isReversedSplit(layout, split) {
+  if (!layout.reversed) {
+    return false
+  }
+  const reversedSplits = layout.reversedSplits ?? REVERSED_BOTH
+  return reversedSplits === REVERSED_BOTH
+    || (split === LEFT && reversedSplits === REVERSED_LEFT)
+    || (split === RIGHT && reversedSplits === REVERSED_RIGHT)
 }
 
 export function rowBaseNote(layout, split, row) {
@@ -120,8 +142,11 @@ export function padNote(layout, x, y) {
     return -1
   }
 
+  // A reversed split ascends right to left, so the pitch comes from the mirrored column
+  const noteCol = isReversedSplit(layout, split) ? numCols(layout) - col : col
+
   const note = rowBaseNote(layout, split, y)
-    + (col - 1) * (layout.colOffset ?? 1)
+    + (noteCol - 1) * (layout.colOffset ?? 1)
     - s.transposeLights
     + s.transposePitch
     + s.transposeOctave

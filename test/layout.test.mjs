@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { layoutGrid, uniformGrid, gridToDict, SPECIAL_FADERS, SPECIAL_SEQUENCER } from '../web/src/layout.js'
+import { layoutGrid, uniformGrid, gridToDict, isReversedSplit, SPECIAL_FADERS, SPECIAL_SEQUENCER, LEFT, RIGHT } from '../web/src/layout.js'
 
 const split = (o = {}) => ({ special: 0, transposeOctave: 0, transposePitch: 0, transposeLights: 0, ...o })
 const base = (o = {}) => ({
@@ -65,4 +65,63 @@ test('guitar tuning uses per-row notes', () => {
   const tuning = [30, 35, 40, 45, 50, 55, 59, 64]
   const g = layoutGrid(base({ rowOffsetMode: 13, guitarTuning: tuning }))
   assert.deepEqual(g[0], tuning)
+})
+
+test('reversed off leaves the layout alone', () => {
+  assert.deepEqual(layoutGrid(base({ reversed: false, reversedSplits: 'both' })), layoutGrid(base()))
+})
+
+test('reversed both mirrors the columns, like NUMCOLS - col in the firmware', () => {
+  const plain = layoutGrid(base())
+  const g = layoutGrid(base({ reversed: true, reversedSplits: 'both' }))
+  assert.deepEqual(g, [...plain].reverse())
+  assert.equal(g[0][0], 54)  // col 1 plays what col 25 plays: 30 + 24
+  assert.equal(g[24][0], 30) // col 25 plays what col 1 plays
+})
+
+test('reversed both mirrors a 128 as well', () => {
+  const g = layoutGrid(base({ columns: 16, reversed: true, reversedSplits: 'both' }))
+  assert.deepEqual(g, [...layoutGrid(base({ columns: 16 }))].reverse())
+  assert.equal(g[0][0], 45) // 17 - 1 = 16, so 30 + 15
+})
+
+test('REVL reverses only the left split, mirrored across the whole surface', () => {
+  const plain = layoutGrid(base({ splitActive: true }))
+  const g = layoutGrid(base({ splitActive: true, reversed: true, reversedSplits: 'left' }))
+  for (let x = 12; x < 25; x++) {
+    assert.deepEqual(g[x], plain[x], `right split pad ${x} is untouched`)
+  }
+  assert.equal(g[11][0], 43) // col 12 -> noteCol 26 - 12 = 14
+  assert.equal(g[0][0], 54)  // col 1  -> noteCol 25, so the left split ascends right to left
+})
+
+test('REVR reverses only the right split', () => {
+  const plain = layoutGrid(base({ splitActive: true }))
+  const g = layoutGrid(base({ splitActive: true, reversed: true, reversedSplits: 'right' }))
+  for (let x = 0; x < 12; x++) {
+    assert.deepEqual(g[x], plain[x], `left split pad ${x} is untouched`)
+  }
+  assert.equal(g[12][0], 42) // col 13 -> noteCol 26 - 13 = 13, so 30 + 12
+  assert.equal(g[24][0], 30) // col 25 -> noteCol 1, so the right split ascends right to left
+})
+
+test('isReversedSplit follows the firmware handedness rules', () => {
+  const off = base({ reversed: false, reversedSplits: 'both' })
+  assert.equal(isReversedSplit(off, LEFT), false)
+  assert.equal(isReversedSplit(off, RIGHT), false)
+
+  const both = base({ reversed: true, reversedSplits: 'both' })
+  assert.equal(isReversedSplit(both, LEFT), true)
+  assert.equal(isReversedSplit(both, RIGHT), true)
+
+  const left = base({ reversed: true, reversedSplits: 'left' })
+  assert.equal(isReversedSplit(left, LEFT), true)
+  assert.equal(isReversedSplit(left, RIGHT), false)
+
+  const right = base({ reversed: true, reversedSplits: 'right' })
+  assert.equal(isReversedSplit(right, LEFT), false)
+  assert.equal(isReversedSplit(right, RIGHT), true)
+
+  // defaults to both, so a missing config still reverses when the device says so
+  assert.equal(isReversedSplit(base({ reversed: true }), LEFT), true)
 })

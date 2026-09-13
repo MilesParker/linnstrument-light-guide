@@ -9,7 +9,7 @@ import { layoutGrid, uniformGrid, gridToDict } from "./layout.js"
 export function generateGrid(config, deviceLayout = null) {
   const columns = config.linnStrumentSize / 8
   if (deviceLayout) {
-    return layoutGrid({ ...deviceLayout, columns, colOffset: config.colOffset })
+    return layoutGrid({ ...deviceLayout, columns, colOffset: config.colOffset, reversedSplits: config.reversedSplits })
   }
   return uniformGrid(columns, config.startNoteNumber, config.rowOffset, config.colOffset)
 }

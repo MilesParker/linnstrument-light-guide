@@ -22,6 +22,11 @@ export const defaultConfig = {
   rowOffset: 5,
   colOffset: 1,
   startNoteNumber: 30,
+  /**
+   * Which splits left handed operation reverses, when the LinnStrument reports it is on.
+   * The device does not report this itself: 'both' is REV, 'left' REVL, 'right' REVR.
+   */
+  reversedSplits: 'both',
   /** If the time offset is lower than this, the note is considered "in-time" (in ms) */
   delayedNoteThreshold: 50,
   /** 
@@ -71,6 +76,7 @@ export function updateSettingsInUI(config) {
   document.getElementById('startNoteNumber').value = config.startNoteNumber.toString()
   document.getElementById('rowOffset').value = config.rowOffset.toString()
   document.getElementById('colOffset').value = config.colOffset.toString()
+  document.getElementById('reversedSplits').value = config.reversedSplits
   document.getElementById('showFeedback').value = config.showFeedback.toString()
   document.getElementById('guideHighlightColor').value = config.guideHighlightColor.toString()
   document.getElementById('playedHighlightColor').value = config.playedHighlightColor.toString()
@@ -143,6 +149,7 @@ export function saveConfig(config, event) {
   config.startNoteNumber = parseInt(document.getElementById("startNoteNumber").value);
   config.rowOffset = parseInt(document.getElementById("rowOffset").value);
   config.colOffset = parseInt(document.getElementById("colOffset").value);
+  config.reversedSplits = document.getElementById("reversedSplits").value;
   config.showFeedback = parseInt(document.getElementById("showFeedback").value);
   config.guideHighlightColor = parseInt(document.getElementById("guideHighlightColor").value);
   config.playedHighlightColor = parseInt(document.getElementById("playedHighlightColor").value);
