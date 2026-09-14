@@ -8,9 +8,11 @@
  * time and waits until that chord has actually been played (see buildSteps).
  */
 
-import { ext, guideNoteOn, guideNoteOff, highlightInstrument, highlightVisualization, recolorGuideNote, refreshPartSides, litPads } from "./main.js"
+import { ext, guideNoteOn, guideNoteOff, highlightInstrument, highlightVisualization, recolorGuideNote, refreshPartSides, litPads, layoutPads, setPadOverrides } from "./main.js"
 import { COLOR_OFF } from "./grid.js"
+import { LEFT, RIGHT } from "./layout.js"
 import { collectParts } from "./parts.js"
+import { placeChord } from "./reach.js"
 import { log } from "./log.js"
 
 const DRUM_CHANNEL = 9 // GM channel 10, zero-based
@@ -50,6 +52,10 @@ let steps = []
 let stepIndex = 0
 let stepStartedAt = 0
 let stepTimer = null
+/** Where the current step puts each of its notes, note -> [x, y] (see reach.js) */
+let fingering = new Map()
+/** How many of the current step's notes the sensor can read at once */
+let stepReach = 0
 /** Bumped on every step change and on stop, so a pending blink cannot outlive its step */
 let generation = 0
 
@@ -305,16 +311,32 @@ function showStep() {
   clearPreview()
   clearStrayNotes()
 
+  // Worked out before anything moves, while the pads the notes are lit on are still
+  // the ones the fingers are actually resting on
+  const overrides = placeStep(step, next)
+
   for (const note of lit) {
-    if (!step.notes.includes(note)) {
-      lightOff(note) // note ended on this step
+    // The note ended on this step, or it has been moved to another pad and has to be
+    // put out where it is before it can be lit afresh. Where it is now is what the
+    // hand it was lit under says, not the hand this step would light it under.
+    const where = litPads(note, activeNotes.get(note).side)
+    if (!step.notes.includes(note) || !samePad(fingering.get(note), where?.[0])) {
+      lightOff(note)
     }
   }
+
+  setPadOverrides(overrides)
+
   for (const note of step.notes) {
+    // A note the sensor has no room for is left dark rather than lit on a pad that
+    // would be ignored. The step does not wait for it either, so it is not a note to
+    // go looking for; the log says which notes these were.
+    if (isPlayable(note) && !fingering.has(note)) continue
+
     const color = sustains(note, step, next) ? holdColor() : pressColor()
     const side = sideOf(step.parts.get(note))
-    if (!lit.has(note)) {
-      lightOn(note, 1, 100, color, side) // note starts on this step
+    if (!activeNotes.has(note)) {
+      lightOn(note, 1, 100, color, side) // note starts on this step, or has moved pad
     } else if (step.onsets.includes(note)) {
       // Lit note struck again: go dark briefly, or it reads as a note to keep holding
       lightOff(note)
@@ -333,6 +355,142 @@ function showStep() {
   updateStrayNotes()
 
   stepStartedAt = performance.now()
+}
+
+//////////////////////////////////////////
+// FINGERING                            //
+//////////////////////////////////////////
+
+// Where to put the hands for a step. The sensor cannot read every shape (see
+// reach.js), and the pad nearest the middle of the split — which is what the guide
+// lights left to itself — walks into that surprisingly often: a four note chord
+// lands on the corners of a rectangle, or stacked fourths land in one column, and
+// the step waits for a note the instrument was never going to send.
+
+/**
+ * Place the current step's notes on pads the sensor can read together, and record in
+ * `stepReach` how many of them it can read at all, which is what the step waits for.
+ *
+ * The next step's notes are placed at the same time, so the look ahead points at the
+ * pad the note will really be wanted on. That placement is worked out again once the
+ * step comes round, from the same notes held in the same places, so it lands where
+ * the look ahead said it would.
+ *
+ * @returns {Map<number, number[][]>} the notes that had to move, and where to
+ */
+function placeStep(step, next) {
+  const wanted = step.notes.filter(isPlayable)
+  const here = placeUnderHands(step, fingering)
+
+  fingering = here.pads
+  stepReach = wanted.length - here.dropped.filter(isPlayable).length
+
+  // Only the step being played is reported on. The one after it is placed here too,
+  // but it gets its say when it comes round and is placed again.
+  const at = `Step ${stepIndex + 1} of ${steps.length}`
+  if (stepReach < wanted.length) {
+    log.warn(`${at}: the sensor cannot read all of ${wanted.length} notes here at once, so ${stepReach} of them ` +
+      `moves it on. Not lit: ${here.dropped.filter(isPlayable).map(noteName).join(', ')}.`)
+  }
+  if (here.crossed.length) {
+    log.warn(`${at}: ${here.crossed.map(noteName).join(', ')} lights under the other hand, as its own has no pad ` +
+      `left that the sensor can read alongside the rest of the chord.`)
+  }
+
+  const ahead = next ? placeUnderHands(next, here.pads).pads : new Map()
+
+  const overrides = new Map()
+  const place = (note, pad, parts) => {
+    // Only a note that had to move is overridden, so every other pad lights exactly
+    // where the Duplicate Note Pads setting puts it
+    const side = sideOf(parts.get(note))
+    if (!samePad(pad, layoutPads(note, side)?.[0])) {
+      overrides.set(note, { pads: [pad], side })
+    }
+  }
+  for (const [note, pad] of here.pads) {
+    place(note, pad, step.parts)
+  }
+  for (const [note, pad] of ahead) {
+    // The step being played owns any note both of them hold: a note struck again next
+    // step is free to land elsewhere then, but it is lit where it is played now
+    if (!here.pads.has(note)) {
+      place(note, pad, next.parts)
+    }
+  }
+  return overrides
+}
+
+/**
+ * Place a step's notes, keeping each one under the hand its part was routed to.
+ *
+ * A note only crosses to the other half where the chord cannot be read at all with
+ * both hands keeping their own parts, which is the same thing that already happens to
+ * a part reaching past the half it was given. Trying the hands' own pads as a whole
+ * first matters: taken note by note, one note crossing early would hide a fingering
+ * the hand had all along.
+ *
+ * @returns {{ pads: Map<number, number[]>, dropped: number[], crossed: number[] }}
+ */
+function placeUnderHands(step, previous) {
+  const ownHands = placeChord(step.notes, step.onsets, (note) => padsFor(note, step, true), previous)
+  if (!ownHands.dropped.some(isPlayable)) {
+    return { ...ownHands, crossed: [] }
+  }
+
+  const crossing = placeChord(step.notes, step.onsets, (note) => padsFor(note, step, false), previous)
+  if (crossing.pads.size <= ownHands.pads.size) {
+    return { ...ownHands, crossed: [] } // crossing bought nothing, so leave the hands alone
+  }
+
+  const crossed = [...crossing.pads]
+    .filter(([note, [x]]) => {
+      const home = layoutPads(note, sideOf(step.parts.get(note)))?.[0]
+      return home && halfOf(x) !== halfOf(home[0])
+    })
+    .map(([note]) => note)
+  return { ...crossing, crossed }
+}
+
+/**
+ * Every pad that sends a note, the one the guide would light of its own accord first
+ * and the rest ordered by how far the hand has to reach for them. Rows count for
+ * more than columns: the fingers already span several columns, but a row is a
+ * different string to the hand.
+ *
+ * `ownHandOnly` drops the pads under the other hand, which is how a note is kept with
+ * the part it belongs to.
+ */
+function padsFor(note, step, ownHandOnly) {
+  const own = layoutPads(note, sideOf(step.parts.get(note))) ?? []
+  const [ox, oy] = own[0] ?? []
+  const hand = ox === undefined ? null : halfOf(ox)
+  const cost = ([x, y]) => ox === undefined ? 0 : (x - ox) ** 2 + 4 * (y - oy) ** 2
+  const rest = (ext.gridDict?.[note] ?? [])
+    .filter(([x, y]) => !own.some(([px, py]) => px === x && py === y))
+    .sort((a, b) => cost(a) - cost(b))
+  return ownHandOnly
+    ? [...own, ...rest.filter(([x]) => halfOf(x) === hand)]
+    : [...own, ...rest.filter(([x]) => halfOf(x) === hand), ...rest.filter(([x]) => halfOf(x) !== hand)]
+}
+
+/**
+ * Which half of the surface a pad is on, or null while it is not split and there is
+ * only the one. splitPoint is the firmware column the right half starts at, and x
+ * is that column less the control column.
+ */
+function halfOf(x) {
+  const layout = ext.deviceLayout
+  return layout?.splitActive ? (x + 1 < layout.splitPoint ? LEFT : RIGHT) : null
+}
+
+function samePad(a, b) {
+  return !!a && !!b && a[0] === b[0] && a[1] === b[1]
+}
+
+/** Note numbers mean little to whoever is playing, so the log names the note */
+function noteName(note) {
+  return new Note(note).identifier
 }
 
 //////////////////////////////////////////
@@ -419,6 +577,7 @@ function markFutures(step, next) {
     return
   }
   for (const note of step.notes) {
+    if (isPlayable(note) && !fingering.has(note)) continue // not lit, so nothing to outline
     const side = sideOf(step.parts.get(note))
     if (next.onsets.includes(note)) {
       markCells(note, 'step-restrike', side)
@@ -494,20 +653,28 @@ function clearStrayNotes() {
   }
 }
 
-/** Move on once every note of the current step is actually held down */
+/**
+ * Move on once as much of the current step is held down as the instrument can sound.
+ *
+ * That is normally the whole chord, and then this waits for every note of it. Where
+ * the sensor cannot read them all at once (see reach.js) it is however many of them
+ * it can: which ones is left to whoever is playing, since the notes that fit depend
+ * on where the fingers landed first, and counting them asks nothing about that.
+ */
 function checkStep() {
   const step = steps[stepIndex]
 
   updateStrayNotes()
 
+  let sounding = 0
   for (const note of step.notes) {
-    if (isPlayable(note) && !ext.heldNotes.has(note)) return
+    if (!isPlayable(note) || !ext.heldNotes.has(note)) continue
+    // Notes starting on this step need a press of their own rather than a hold left
+    // over from the previous step, which is what makes a re-struck note count
+    if (step.onsets.includes(note) && !pressedOnThisStep(note)) continue
+    sounding++
   }
-  // Notes starting on this step need a press of their own rather than a hold left
-  // over from the previous step, which is what makes a re-struck note count
-  for (const note of step.onsets) {
-    if (isPlayable(note) && !pressedOnThisStep(note)) return
-  }
+  if (sounding < stepReach) return
 
   if (stepIndex + 1 >= steps.length) {
     stopPlayback()
@@ -601,6 +768,10 @@ function allNotesOff() {
   clearPreview()
   clearStrayNotes()
   clearFutureMarks()
+  // Last, so everything above puts out the pad it was actually lit on
+  setPadOverrides(null)
+  fingering = new Map()
+  stepReach = 0
 }
 
 /** JZZ.MIDI.SMF expects a binary string; chunked to avoid blowing the stack */

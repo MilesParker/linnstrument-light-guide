@@ -86,6 +86,8 @@ async function init() {
 
 async function setupGrid() {
   resetGrid()
+  // Pads step mode had moved notes onto belong to the grid being replaced
+  setPadOverrides(null)
   ext.grid = generateGrid(ext.config, ext.deviceLayout)
   // Every pad that sends a note, which is what a note can be played on
   ext.gridDict = getGridDict(ext.grid)
@@ -145,8 +147,8 @@ export function refreshPartSides() {
   }
 }
 
-/** The pads to light for a note, under a given side's hand where one is known */
-export function litPads(noteNumber, side = null) {
+/** The pads the layout puts a note on, under a given side's hand where one is known */
+export function layoutPads(noteNumber, side = null) {
   if (side != null && ext.sideDicts) {
     const pads = ext.sideDicts[side][noteNumber]
     if (pads) {
@@ -154,6 +156,33 @@ export function litPads(noteNumber, side = null) {
     }
   }
   return ext.litDict[noteNumber]
+}
+
+/**
+ * The pads to light for a note. Normally the layout's own, but step mode moves a
+ * note the sensor could not otherwise read onto a pad it can (see reach.js).
+ *
+ * An override belongs to the hand it was worked out for. Asked about the other hand
+ * — which is how a note lit on both at once is put out again — the layout answers,
+ * since that is where the other hand's pad still is.
+ */
+export function litPads(noteNumber, side = null) {
+  const moved = ext.padOverrides?.get(noteNumber)
+  if (moved && (side === null || side === moved.side)) {
+    return moved.pads
+  }
+  return layoutPads(noteNumber, side)
+}
+
+/**
+ * Put some notes on pads of step mode's choosing until told otherwise. Keyed by
+ * note, which is all the rest of the lighting path knows about, so this reaches the
+ * instrument, the visualization and the outlines alike.
+ *
+ * @param {Map<number, { pads: number[][], side: number|null }> | null} overrides
+ */
+export function setPadOverrides(overrides) {
+  ext.padOverrides = overrides
 }
 
 /**
