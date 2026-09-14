@@ -14,6 +14,10 @@
   --ls-print-tracking: 0.09em;
   --ls-print-weight: 600;
 
+  /* Walnut cheeks, as the instrument is trimmed with */
+  --ls-cheek: #6f4a2e;
+  --ls-cheek-h: 2.0rem;
+
   /* Playing surface, and the pad material the keys share with it */
   --ls-surface: #bfc1bc;
   --ls-pad: #d8dad4;
@@ -337,6 +341,38 @@ select, input {
   border-radius: var(--ls-radius);
   padding: 6px;
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+
+/* Walnut cheeks, as the instrument is trimmed with: a band capping each end of
+   the chassis, the surface and its keys held between them. Grain runs the
+   length of the band from stretched fractal noise mapped onto a walnut ramp,
+   rather than stripes, which at this thickness would read as corduroy. */
+/* Clear of the settings below, which are not part of the instrument */
+.chassis {
+  margin-bottom: 1rem;
+}
+.chassis::before,
+.chassis::after {
+  content: "";
+  display: block;
+  height: var(--ls-cheek-h);
+  background-color: var(--ls-cheek);
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  background-image:
+    /* Ends darkened as a sawn edge is, and the face lit from the outside in */
+    linear-gradient(90deg, rgb(0 0 0 / 0.34), rgb(0 0 0 / 0) 3%, rgb(0 0 0 / 0) 97%, rgb(0 0 0 / 0.36)),
+    linear-gradient(var(--ls-cheek-face), rgb(255 235 212 / 0.13), rgb(0 0 0 / 0) 45%, rgb(0 0 0 / 0.34)),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1400' height='18' preserveAspectRatio='none'%3E%3Cfilter id='g' color-interpolation-filters='sRGB'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.012 0.28' numOctaves='4' seed='11'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncR type='table' tableValues='0.21 0.63 0.35 0.55'/%3E%3CfeFuncG type='table' tableValues='0.14 0.44 0.23 0.38'/%3E%3CfeFuncB type='table' tableValues='0.09 0.30 0.15 0.25'/%3E%3CfeFuncA type='table' tableValues='1 1'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='1400' height='18' filter='url(%23g)'/%3E%3C/svg%3E");
+}
+/* Each cheek is lit from the outside, so the two faces are mirror images */
+.chassis::before {
+  --ls-cheek-face: 180deg;
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.45), 0 3px 6px -2px rgb(0 0 0 / 0.55);
+}
+.chassis::after {
+  --ls-cheek-face: 0deg;
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.45), 0 -3px 6px -2px rgb(0 0 0 / 0.55);
 }
 
 #visualization {
