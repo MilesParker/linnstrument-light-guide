@@ -52,9 +52,9 @@
         <div class="panel-group" style="--keys: 4">
           <div class="panel-group-title">Configuration</div>
           <div class="panel-group-keys">
-            <button type="button" id="read-config" class="btn btn-secondary" data-bs-toggle="tooltip" data-bs-placement="top" title="Read the current layout, transposition and note light settings from the LinnStrument. Nothing is read until you press this.">Import</button>
-            <button type="button" id="save" class="btn btn-success" data-bs-toggle="tooltip" data-bs-placement="top" title="Save the settings below and apply them.">Save</button>
-            <button type="button" id="reset-config" class="btn btn-secondary" data-bs-toggle="tooltip" data-bs-placement="top" title="Put the settings below back to their defaults.">Default</button>
+            <button type="button" id="read-config" class="btn btn-secondary" data-bs-toggle="tooltip" data-bs-placement="top" title="Read the current layout, transposition and note light settings from the LinnStrument. This also happens once on startup; press it again after changing anything on the instrument.">Import</button>
+            <button type="button" id="save" class="btn btn-success" data-bs-toggle="tooltip" data-bs-placement="top" title="Save the settings below and apply them. The page reloads.">Save</button>
+            <button type="button" id="reset-config" class="btn btn-secondary" data-bs-toggle="tooltip" data-bs-placement="top" title="Put the settings below back to their defaults. The page reloads.">Default</button>
             <button id="reset-state" type="button" class="btn btn-danger" data-bs-toggle="tooltip" data-bs-placement="top" title="Resets all state (incl. highlights) on the visualization and the LinnStrument.">Reset</button>
           </div>
         </div>
@@ -63,7 +63,7 @@
           <div class="panel-group-keys">
             <input type="file" id="midiFile" accept=".mid,.midi" class="visually-hidden">
             <label for="midiFile" class="btn btn-secondary" data-bs-toggle="tooltip" data-bs-placement="top" title="Play a local MIDI file directly into the Light Guide. No virtual MIDI port needed.">Choose File</label>
-            <div class="form-check form-check-primary" data-bs-toggle="tooltip" data-bs-placement="top" title="Step through the file instead of playing it in time: each set of notes stays lit until every one of them is held down.">
+            <div class="form-check form-check-primary" data-bs-toggle="tooltip" data-bs-placement="top" title="Step through the file instead of playing it in time: each chord stays lit until you are holding it, then the next one lights. Paced by your playing rather than by a tempo.">
               <input class="form-check-input" type="checkbox" id="player-step">
               <label class="form-check-label" for="player-step">Stepwise</label>
             </div>
@@ -125,7 +125,7 @@
                 </select>
 
                 <label for="guideHighlightColor" class="form-label">Light Guide Note Color</label>
-                <select id="guideHighlightColor" class="form-select" data-bs-toggle="tooltip" data-bs-placement="right" title="Color for Light Guide highlights on LinnStrument and visualization.">
+                <select id="guideHighlightColor" class="form-select" data-bs-toggle="tooltip" data-bs-placement="right" title="Color for Light Guide highlights on LinnStrument and visualization. In step mode it means a note to strike and release; the Step settings below color the rest.">
                   <option value="7">Off</option>
                   <!-- <option value="0" selected>As set in Note Lights settings</option> -->
                   <option value="1">Red</option>
@@ -229,10 +229,10 @@
                 </select>
 
                 <label for="delayedNoteThreshold" class="form-label">Delayed Note Threshold (ms)</label>
-                <input id="delayedNoteThreshold" class="form-control text-end" type="text" placeholder="1" data-bs-toggle="tooltip" data-bs-placement="right" title="Below this timing offset, a note is considered in-time. Above, its considered early or late.">
+                <input id="delayedNoteThreshold" class="form-control text-end" type="text" placeholder="1" data-bs-toggle="tooltip" data-bs-placement="right" title="Below this timing offset, a note is considered in-time. Above, it's considered early or late.">
 
                 <label for="missedNoteThreshold" class="form-label">Missed Note Threshold (ms)</label>
-                <input id="missedNoteThreshold" class="form-control text-end" type="text" placeholder="1" data-bs-toggle="tooltip" data-bs-placement="right" title="Above this timing offset, a note is consider a missed note.">
+                <input id="missedNoteThreshold" class="form-control text-end" type="text" placeholder="1" data-bs-toggle="tooltip" data-bs-placement="right" title="Above this timing offset, a note is considered a missed note.">
 
               </form>
             </div>
@@ -244,7 +244,7 @@
             <div class="card-body collapse show" id="midi-config">
               <form>
                 <label for="instrumentInputPort" class="form-label"><strong>Input</strong>: Instrument</label>
-                <select id="instrumentInputPort" class="form-select" data-bs-toggle="tooltip" data-bs-placement="left" title="Select your Instrument / LinnStrument MIDI Input port for receiving played notes.">
+                <select id="instrumentInputPort" class="form-select" data-bs-toggle="tooltip" data-bs-placement="left" title="Select your Instrument / LinnStrument MIDI Input port for receiving played notes. Import needs this as well, since the LinnStrument's answers come back on it.">
                   <option value=""></option>
                 </select>
 
