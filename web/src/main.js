@@ -52,7 +52,24 @@ window.ext = ext
 // INIT                                 //
 //////////////////////////////////////////
 
-WebMidi.enable().then(init).catch(console.error);
+// Whether the browser has Web MIDI of its own is settled in index.html, before the libraries
+// load and before this module is even fetched. Enabling through JZZ's shim instead would come
+// up with no ports and no way to reach the instrument, so it is not worth starting.
+if (window.hasNativeWebMidi) {
+  // Only enable() failing is MIDI being unavailable; a fault inside init() is not that
+  WebMidi.enable().then(init, reportMidiRefused).catch(console.error);
+}
+
+/**
+ * Raise the same warning bar as index.html does, with the reason swapped in: the API is
+ * there but would not start, e.g. the page is not on HTTPS or the permission was denied.
+ */
+function reportMidiRefused(error) {
+  console.error(error)
+  document.getElementById("webmidi-warning-reason").textContent =
+    `This browser supports Web MIDI, but refused it: ${error?.message ?? error}.`
+  document.getElementById("webmidi-warning").hidden = false
+}
 
 // Function triggered when WEBMIDI.js is ready
 async function init() {

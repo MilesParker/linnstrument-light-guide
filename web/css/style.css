@@ -189,6 +189,19 @@ nav a {
   padding: 0.3rem 0.6rem;
 }
 
+/* Web MIDI warning: a bar across the very top of the page, shown only when the browser
+   has no MIDI to give us. Amber on the dark chassis, so it reads as a panel warning. */
+#webmidi-warning {
+  --bs-alert-color: #f0c36a;
+  --bs-alert-bg: #241d12;
+  --bs-alert-border-color: var(--ls-edge);
+  --bs-alert-link-color: #ffd98a;
+  --bs-alert-margin-bottom: 0;
+  --bs-alert-padding-y: 0.6rem;
+  font-size: 0.9em;
+  text-align: center;
+}
+
 .card {
   --bs-card-bg: var(--ls-panel);
   --bs-card-cap-bg: var(--ls-panel-raised);

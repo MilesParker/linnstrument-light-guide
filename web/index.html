@@ -12,6 +12,13 @@
   <link href="./lib/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="./css/style.css?v=3" />
 
+  <script>
+    // Read before the libraries load, and kept for them: JZZ installs its own
+    // navigator.requestMIDIAccess shim, so afterwards a browser with no native Web MIDI
+    // looks like it has it. The shim cannot reach a LinnStrument, hence the warning below.
+    window.hasNativeWebMidi = typeof navigator.requestMIDIAccess === "function"
+  </script>
+
   <script src="./lib/bootstrap.bundle.min.js?v=2"></script>
   <script src="./lib/webmidi.iife.min.js"></script>
   <script src="./lib/JZZ.js"></script>
@@ -20,6 +27,20 @@
 </head>
 
 <body>
+  <div id="webmidi-warning" class="alert alert-warning" role="alert" hidden>
+    <strong id="webmidi-warning-reason">This browser has no Web MIDI support.</strong>
+    Nothing here can reach your LinnStrument without it, so open the page in a
+    <a class="alert-link" target="_blank" rel="noopener" href="https://caniuse.com/midi">Web MIDI enabled browser</a>
+    such as Google Chrome or MS Edge.
+  </div>
+  <script>
+    // Raised here, not from the app's modules: a browser with no Web MIDI has nothing to run,
+    // so the warning must not depend on those modules loading and running first.
+    if (!window.hasNativeWebMidi) {
+      document.getElementById("webmidi-warning").hidden = false
+    }
+  </script>
+
   <div class="container py-3">
     <header>
       <div class="d-flex flex-column flex-md-row align-items-center pb-2 mb-3 border-bottom">
