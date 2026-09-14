@@ -101,6 +101,7 @@ nav a,
   flex-basis: calc((var(--keys) - 1) * var(--ls-key-gap));
 }
 .panel-group-title {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -119,9 +120,40 @@ nav a,
   color: var(--ls-print);
   font-variant-numeric: tabular-nums;
 }
+/* A name read off a file rather than printed on the panel, so it keeps its own
+   case and spacing instead of the lettering's */
+.panel-group-value-name {
+  text-transform: none;
+  letter-spacing: 0;
+}
+/* With no file loaded the group's name sits where it always did */
+.panel-group-value-name:empty {
+  display: none;
+}
 /* Lit while the player is off the file's own tempo, so a slowed song says so */
 .panel-group-value.off-tempo {
   color: var(--ls-key-led-active);
+}
+/* A value printed over the keys it belongs to instead of beside the group's
+   name. Nothing is painted behind it, so the rule runs on underneath and only
+   the lettering itself breaks it. */
+.panel-group-value-over {
+  position: absolute;
+  white-space: nowrap;
+}
+/* Over the group's first key, reading on rightwards along the empty rule when
+   the value is wider than one key */
+.panel-group-value-over-start {
+  left: 0;
+}
+/* Centered over the group's last --span keys, whose width this matches */
+.panel-group-value-over-end {
+  right: 0;
+  width: calc(
+    (100% - (var(--keys) - 1) * var(--ls-key-gap)) / var(--keys) * var(--span) +
+      (var(--span) - 1) * var(--ls-key-gap)
+  );
+  text-align: center;
 }
 .panel-group-keys {
   display: flex;

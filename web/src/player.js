@@ -58,12 +58,12 @@ export function registerPlayerEvents() {
   const playEl = document.getElementById('player-play')
   const stopEl = document.getElementById('player-stop')
   const stepEl = document.getElementById('player-step')
-  const fileLabelEl = document.getElementById('midiFileLabel')
+  const fileNameEl = document.getElementById('midi-file-name')
   const slowerEl = document.getElementById('player-slower')
   const fasterEl = document.getElementById('player-faster')
   const speedEl = document.getElementById('player-speed')
 
-  if (!fileEl || !playEl || !stopEl || !stepEl || !fileLabelEl || !slowerEl || !fasterEl || !speedEl) {
+  if (!fileEl || !playEl || !stopEl || !stepEl || !fileNameEl || !slowerEl || !fasterEl || !speedEl) {
     return
   }
 
@@ -93,9 +93,9 @@ export function registerPlayerEvents() {
   stepEl.addEventListener('change', showSpeed)
   showSpeed()
 
-  /** The label is the only visible part of the file chooser, so it carries the file name */
-  const setFileLabel = (name) => {
-    fileLabelEl.textContent = name.length > 24 ? `${name.slice(0, 23)}…` : name
+  /** Printed across the group's rule, so the key it was loaded with keeps its own label */
+  const setFileName = (name) => {
+    fileNameEl.textContent = name.length > 24 ? `${name.slice(0, 23)}…` : name
   }
 
   fileEl.addEventListener('change', async (event) => {
@@ -106,7 +106,7 @@ export function registerPlayerEvents() {
       player = loadPlayer(await file.arrayBuffer())
       playEl.disabled = false
       stopEl.disabled = false
-      setFileLabel(file.name)
+      setFileName(file.name)
       const seconds = Math.round(player.durationMS() / 1000)
       log.success(`Loaded MIDI file: ${file.name} (${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}, ${steps.length} steps)`)
     } catch (err) {
@@ -116,7 +116,7 @@ export function registerPlayerEvents() {
       refreshPartSides()
       playEl.disabled = true
       stopEl.disabled = true
-      setFileLabel('Choose File')
+      setFileName('')
       log.error(`Could not read MIDI file: ${file.name}`)
       console.error(err)
     }

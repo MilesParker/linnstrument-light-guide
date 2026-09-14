@@ -58,10 +58,10 @@
           </div>
         </div>
         <div class="panel-group" style="--keys: 6">
-          <div class="panel-group-title">Player <span id="player-speed" class="panel-group-value">100%</span></div>
+          <div class="panel-group-title">Player <span id="midi-file-name" class="panel-group-value panel-group-value-name panel-group-value-over panel-group-value-over-start"></span><span id="player-speed" class="panel-group-value panel-group-value-over panel-group-value-over-end" style="--span: 2">100%</span></div>
           <div class="panel-group-keys">
             <input type="file" id="midiFile" accept=".mid,.midi" class="visually-hidden">
-            <label for="midiFile" id="midiFileLabel" class="btn btn-secondary" data-bs-toggle="tooltip" data-bs-placement="top" title="Play a local MIDI file directly into the Light Guide. No virtual MIDI port needed.">Choose File</label>
+            <label for="midiFile" class="btn btn-secondary" data-bs-toggle="tooltip" data-bs-placement="top" title="Play a local MIDI file directly into the Light Guide. No virtual MIDI port needed.">Choose File</label>
             <div class="form-check" data-bs-toggle="tooltip" data-bs-placement="top" title="Step through the file instead of playing it in time: each set of notes stays lit until every one of them is held down.">
               <input class="form-check-input" type="checkbox" id="player-step">
               <label class="form-check-label" for="player-step">Stepwise</label>
