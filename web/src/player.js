@@ -333,7 +333,7 @@ function showStep() {
     // go looking for; the log says which notes these were.
     if (isPlayable(note) && !fingering.has(note)) continue
 
-    const color = sustains(note, step, next) ? holdColor() : pressColor()
+    const color = stepColor(note, step, next)
     const side = sideOf(step.parts.get(note))
     if (!activeNotes.has(note)) {
       lightOn(note, 1, 100, color, side) // note starts on this step, or has moved pad
@@ -517,24 +517,49 @@ function previewColor() {
   return ext.config.stepNextColor
 }
 
+/** Notes the next step strikes again, which have to come up before it does */
+function repeatColor() {
+  return ext.config.stepRepeatColor
+}
+
 /** Notes being held that this step does not want, so the pad to lift is visible */
 function errorColor() {
   return ext.config.stepErrorColor
 }
 
 /**
- * Whether a note reaches past the step it is lit on, in either direction. Both mean
- * the same thing to the player — do not lift this — so the pad carries the hold color
- * from the moment it lights rather than changing under the finger a step later.
+ * The color a note of the current step is lit with: what to do with the pad now,
+ * together with what becomes of it when the step turns. A pad needs both at once,
+ * and it carries them from the moment it lights rather than changing under the
+ * finger a step later, by which time the cue has come too late to act on.
  *
- * A note the next step strikes again is not one of these: it has to come up to be
- * played afresh.
+ *                   ends this step   held on into next   struck again next
+ *   struck now      press            hold                repeat
+ *   already down    hold             hold                repeat
+ *
+ * A note the next step strikes again reads the same whichever row it is in, because
+ * the instruction is the same: this pad has to come up before the step turns. What
+ * to do with it until then is answered by whether a finger is already on it.
+ *
+ * The one pairing left standing is a note already down that ends with this step,
+ * which shares the hold color with one that carries on. Held a step too long it
+ * becomes a note the next step has no use for, which the error color catches, and
+ * the sustain outline separates the two on the visualization.
  */
-function sustains(note, step, next) {
-  if (!step.onsets.includes(note)) {
-    return true
+function stepColor(note, step, next) {
+  const heldOn = !step.onsets.includes(note)          // already down when the step began
+  const again = !!next && next.onsets.includes(note)  // the next step strikes it afresh
+  const kept = !!next && next.notes.includes(note)    // still sounding on the next step
+
+  if (again && repeatColor() !== COLOR_OFF) {
+    return repeatColor()
   }
-  return !!next && next.notes.includes(note) && !next.onsets.includes(note)
+  // Switched off, a repeated note falls back to what its pad said before this color
+  // existed: already down stays a held note, struck now stays a note to strike.
+  if (heldOn || (kept && !again)) {
+    return holdColor()
+  }
+  return pressColor()
 }
 
 /**
@@ -567,9 +592,10 @@ function clearPreview() {
 }
 
 /**
- * Outline the lit pads by what becomes of them on the next step: held on, or struck
- * again. A pad is a single color on the instrument, so showing this there would cover
- * up whether the note is to be struck or held now, which matters more.
+ * Outline the lit pads held on into the next step, which is the one thing the colors
+ * leave paired: a note already down that ends with this step carries the same hold
+ * color as one that carries on past it. A pad is a single color on the instrument,
+ * so this cannot be a color there without covering up what to do with the pad now.
  */
 function markFutures(step, next) {
   clearFutureMarks()
@@ -578,11 +604,9 @@ function markFutures(step, next) {
   }
   for (const note of step.notes) {
     if (isPlayable(note) && !fingering.has(note)) continue // not lit, so nothing to outline
-    const side = sideOf(step.parts.get(note))
-    if (next.onsets.includes(note)) {
-      markCells(note, 'step-restrike', side)
-    } else if (next.notes.includes(note)) {
-      markCells(note, 'step-sustains', side)
+    // A note struck again on the next step is not held on: the repeat color has it
+    if (next.notes.includes(note) && !next.onsets.includes(note)) {
+      markCells(note, 'step-sustains', sideOf(step.parts.get(note)))
     }
   }
 }
@@ -597,8 +621,8 @@ function markCells(note, className, side = null) {
 }
 
 function clearFutureMarks() {
-  document.querySelectorAll('.step-sustains, .step-restrike').forEach((el) => {
-    el.classList.remove('step-sustains', 'step-restrike')
+  document.querySelectorAll('.step-sustains').forEach((el) => {
+    el.classList.remove('step-sustains')
   })
 }
 

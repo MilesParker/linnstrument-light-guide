@@ -45,7 +45,6 @@
 
   /* Step mode: what becomes of a lit pad on the next step */
   --ls-step-sustain: rgba(20, 24, 20, 0.5);
-  --ls-step-restrike: rgba(20, 24, 20, 0.7);
 }
 
 body {
@@ -473,14 +472,10 @@ select, input {
 #visualization .led-lime { --ls-led: 160 255 60; }
 #visualization .led-pink { --ls-led: 255 150 200; }
 
-/* Step mode: a lit pad the next step holds on to, or strikes again. Colors are
-   taken by the three step colors already, so this dimension is an outline. */
+/* Step mode: a lit pad the next step holds on to. The colors say the rest; this is
+   the one thing they leave paired, so it gets an outline instead. */
 #visualization .cell.step-sustains {
   outline: 3px solid var(--ls-step-sustain);
-  outline-offset: -3px;
-}
-#visualization .cell.step-restrike {
-  outline: 3px dashed var(--ls-step-restrike);
   outline-offset: -3px;
 }
 

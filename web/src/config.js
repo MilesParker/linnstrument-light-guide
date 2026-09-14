@@ -16,7 +16,13 @@ export const defaultConfig = {
   //////////////////////////////////////////
 
   playedHighlightColor: 12,
-  guideHighlightColor: 6,
+  /**
+   * The step colors rhyme by when they matter: warm for a note live in this step,
+   * green for one the next step strikes. That leaves the cool half of the palette
+   * (cyan, blue, magenta, pink) free for whatever the pads themselves are set to,
+   * and white for played notes, so the app and the layout never collide.
+   */
+  guideHighlightColor: 2,
   /**
    * Which of a note's pads light up: every one of them (0), the one nearest the
    * middle of each split (1), or that of a single split (2). See getLitDict.
@@ -29,10 +35,12 @@ export const defaultConfig = {
   partRouting: 1,
   // Step mode only. Each says what to do with a lit pad beyond it being part of the
   // step, and each falls back to how step mode looked without it when switched off.
-  /** Color for a note struck on an earlier step and only held now. Off reuses guideHighlightColor. */
-  stepHoldColor: 4,
+  /** Color for a note that is not to be lifted, struck now or on an earlier step. Off reuses guideHighlightColor. */
+  stepHoldColor: 9,
+  /** Color for a note the next step strikes again, so the pad has to come up. Off reuses the hold or press color. */
+  stepRepeatColor: 10,
   /** Color for the notes the next step strikes, lit while still dark. Off shows no look ahead. */
-  stepNextColor: 5,
+  stepNextColor: 3,
   /** Color for a pad held that the step has no note for. Off leaves a stray note unmarked. */
   stepErrorColor: 1,
   /** Outline lit pads on the visualization by what becomes of them on the next step */
@@ -118,6 +126,7 @@ export function updateSettingsInUI(config) {
   setField('partRouting', config.partRouting)
   setField('playedHighlightColor', config.playedHighlightColor)
   setField('stepHoldColor', config.stepHoldColor)
+  setField('stepRepeatColor', config.stepRepeatColor)
   setField('stepNextColor', config.stepNextColor)
   setField('stepErrorColor', config.stepErrorColor)
   setField('stepFutureOutlines', config.stepFutureOutlines)
@@ -145,6 +154,7 @@ function configFromUI() {
     partRouting: parseInt(document.getElementById("partRouting").value),
     playedHighlightColor: parseInt(document.getElementById("playedHighlightColor").value),
     stepHoldColor: parseInt(document.getElementById("stepHoldColor").value),
+    stepRepeatColor: parseInt(document.getElementById("stepRepeatColor").value),
     stepNextColor: parseInt(document.getElementById("stepNextColor").value),
     stepErrorColor: parseInt(document.getElementById("stepErrorColor").value),
     stepFutureOutlines: parseInt(document.getElementById("stepFutureOutlines").value),
