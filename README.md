@@ -2,7 +2,7 @@
 
 ## Description
 
-This [web app](https://fannon.github.io/linnstrument-light-guide/) allows you to visualize a
+This [web app](https://milesparker.github.io/linnstrument-light-guide/) allows you to visualize a
 LinnStrument in a modern, [Web MIDI enabled browser](https://caniuse.com/midi). It shows the
 notes you are currently playing, and guide notes — the notes you are meant to play — both on
 screen and on the instrument itself. It can then compare the two, and tell you what you missed
@@ -214,7 +214,7 @@ Personally, I'm also using a DAW to hear my own notes, synthesia notes and drums
 
 ![Synthesia Output Config](./assets/synthesia-output.png)
 
-Now everything should be ready. Start the webapp at https://fannon.github.io/linnstrument-light-guide/.
+Now everything should be ready. Start the webapp at https://milesparker.github.io/linnstrument-light-guide/.
 Make sure to use a modern browser that supports WebMIDI like Google Chrome or MS Edge.
 
 Make sure that the configuration is correct and matches your MIDI input and output ports.

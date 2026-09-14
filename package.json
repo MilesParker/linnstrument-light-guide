@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "build": "bash ./bin/updateLibs.sh",
-    "deploy": "gh-pages -d ./web && echo https://fannon.github.io/linnstrument-light-guide/",
+    "deploy": "gh-pages -d ./web && echo https://milesparker.github.io/linnstrument-light-guide/",
     "start": "python3 -m http.server -d web 8080",
     "test": "node --test test/*.test.mjs"
   },
