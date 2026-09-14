@@ -10,7 +10,7 @@
   
   <link rel="icon" type="image/x-icon" href="favicon.ico">
   <link href="./lib/bootstrap.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="./css/style.css?v=2" />
+  <link rel="stylesheet" href="./css/style.css?v=3" />
 
   <script src="./lib/bootstrap.bundle.min.js?v=2"></script>
   <script src="./lib/webmidi.iife.min.js"></script>
@@ -54,8 +54,8 @@
           <div class="panel-group-keys">
             <button type="button" id="read-config" class="btn btn-secondary" data-bs-toggle="tooltip" data-bs-placement="top" title="Read the current layout, transposition and note light settings from the LinnStrument. Nothing is read until you press this.">Import</button>
             <button type="button" id="save" class="btn btn-success" data-bs-toggle="tooltip" data-bs-placement="top" title="Save the settings below and apply them.">Save</button>
-            <button type="button" id="reset-config" class="btn btn-danger" data-bs-toggle="tooltip" data-bs-placement="top" title="Put the settings below back to their defaults.">Default</button>
-            <button id="reset-state" type="button" class="btn btn-secondary" data-bs-toggle="tooltip" data-bs-placement="top" title="Resets all state (incl. highlights) on the visualization and the LinnStrument.">Reset</button>
+            <button type="button" id="reset-config" class="btn btn-secondary" data-bs-toggle="tooltip" data-bs-placement="top" title="Put the settings below back to their defaults.">Default</button>
+            <button id="reset-state" type="button" class="btn btn-danger" data-bs-toggle="tooltip" data-bs-placement="top" title="Resets all state (incl. highlights) on the visualization and the LinnStrument.">Reset</button>
           </div>
         </div>
         <div class="panel-group" style="--keys: 6">
@@ -63,14 +63,16 @@
           <div class="panel-group-keys">
             <input type="file" id="midiFile" accept=".mid,.midi" class="visually-hidden">
             <label for="midiFile" class="btn btn-secondary" data-bs-toggle="tooltip" data-bs-placement="top" title="Play a local MIDI file directly into the Light Guide. No virtual MIDI port needed.">Choose File</label>
-            <div class="form-check" data-bs-toggle="tooltip" data-bs-placement="top" title="Step through the file instead of playing it in time: each set of notes stays lit until every one of them is held down.">
+            <div class="form-check form-check-primary" data-bs-toggle="tooltip" data-bs-placement="top" title="Step through the file instead of playing it in time: each set of notes stays lit until every one of them is held down.">
               <input class="form-check-input" type="checkbox" id="player-step">
               <label class="form-check-label" for="player-step">Stepwise</label>
             </div>
-            <button id="player-play" type="button" class="btn btn-primary" disabled>Play</button>
-            <button id="player-stop" type="button" class="btn btn-secondary" disabled>Stop</button>
-            <button id="player-slower" type="button" class="btn btn-secondary" data-bs-toggle="tooltip" data-bs-placement="top" title="Play the file slower, down to a quarter of its tempo. Takes effect straight away, mid-song too. Step mode is paced by your playing, so speed does not apply there.">Slower</button>
-            <button id="player-faster" type="button" class="btn btn-secondary" data-bs-toggle="tooltip" data-bs-placement="top" title="Play the file faster, up to twice its tempo. Takes effect straight away, mid-song too. Step mode is paced by your playing, so speed does not apply there.">Faster</button>
+            <button id="player-play" type="button" class="btn btn-success" disabled>Play</button>
+            <button id="player-stop" type="button" class="btn btn-danger" disabled>Stop</button>
+            <button id="player-slower" type="button" class="btn btn-secondary" data-bs-toggle="tooltip" data-bs-placement="top" title="Play the file slower, down to a quarter of its tempo. Takes effect straight away, mid-song too.">Slower</button>
+            <button id="player-faster" type="button" class="btn btn-secondary" data-bs-toggle="tooltip" data-bs-placement="top" title="Play the file faster, up to twice its tempo. Takes effect straight away, mid-song too.">Faster</button>
+            <button id="player-back" type="button" class="btn btn-secondary" data-bs-toggle="tooltip" data-bs-placement="top" title="Go back a step, to play it again. Takes the place of Slower, which step mode has no use for: it is paced by your playing rather than by a tempo." hidden disabled>Back</button>
+            <button id="player-next" type="button" class="btn btn-secondary" data-bs-toggle="tooltip" data-bs-placement="top" title="Move on a step without playing it. Takes the place of Faster, which step mode has no use for: it is paced by your playing rather than by a tempo." hidden disabled>Next</button>
           </div>
         </div>
         <div class="panel-group" style="--keys: 2">

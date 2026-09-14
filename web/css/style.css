@@ -221,6 +221,12 @@ nav a {
   font-size: var(--ls-key-font);
 }
 
+/* Keys are display: inline-flex below, which would otherwise outrank the browser's
+   own rule for the attribute and leave a hidden key on the panel */
+[hidden] {
+  display: none !important;
+}
+
 /* Panel keys, as on the instrument: a rectangular key of the surface
    material with its label screen-printed on the panel above it. The key
    lights in its action color while pressed. */
@@ -260,11 +266,16 @@ nav a {
 .btn-success { --ls-key-led: var(--ls-key-led-go); }
 .btn-danger { --ls-key-led: var(--ls-key-led-stop); }
 .btn-primary { --ls-key-led: var(--ls-key-led-active); }
+/* A mode key rather than an action, lit in the active color while it is switched on */
+.form-check-primary { --ls-key-led: var(--ls-key-led-active); }
 
 .btn::after,
 .form-check-input[type="checkbox"] {
-  flex: 0 0 auto;
+  /* One key width, until the row carries more keys than the panel is wide, where
+     they narrow together rather than the last of them running off the chassis */
+  flex: 0 1 auto;
   width: var(--ls-key-w);
+  max-width: 100%;
   height: var(--ls-key-h);
   border-radius: var(--ls-radius);
   background-color: var(--ls-key-unlit);

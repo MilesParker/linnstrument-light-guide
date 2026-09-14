@@ -58,6 +58,11 @@ let fingering = new Map()
 let stepReach = 0
 /** Bumped on every step change and on stop, so a pending blink cannot outlive its step */
 let generation = 0
+/**
+ * Repaints the Player group for the mode it is in: which pair of keys the last two
+ * slots carry, and what the readout over them says. Set once the panel is registered.
+ */
+let showTransport = () => {}
 
 export function registerPlayerEvents() {
   const fileEl = document.getElementById('midiFile')
@@ -68,20 +73,41 @@ export function registerPlayerEvents() {
   const slowerEl = document.getElementById('player-slower')
   const fasterEl = document.getElementById('player-faster')
   const speedEl = document.getElementById('player-speed')
+  const backEl = document.getElementById('player-back')
+  const nextEl = document.getElementById('player-next')
 
-  if (!fileEl || !playEl || !stopEl || !stepEl || !fileNameEl || !slowerEl || !fasterEl || !speedEl) {
+  if (!fileEl || !playEl || !stopEl || !stepEl || !fileNameEl || !slowerEl || !fasterEl || !speedEl ||
+    !backEl || !nextEl) {
     return
   }
 
+  backEl.addEventListener('click', () => moveStep(-1))
+  nextEl.addEventListener('click', () => moveStep(1))
+
   speedIndex = storedSpeedIndex()
 
-  /** Print the speed and dim whichever key has nowhere left to go */
-  const showSpeed = () => {
-    speedEl.textContent = `${Math.round(SPEEDS[speedIndex] * 100)}%`
-    speedEl.classList.toggle('off-tempo', speedIndex !== FULL_SPEED)
-    // Step mode is paced by whoever is playing, so there is no tempo to scale
-    slowerEl.disabled = stepEl.checked || speedIndex === 0
-    fasterEl.disabled = stepEl.checked || speedIndex === SPEEDS.length - 1
+  /**
+   * The panel has no room for both pairs, and neither pair means anything in the
+   * other's mode: a tempo cannot be scaled when the playing sets the pace, and there
+   * is no step to move while the file runs in time. So the last two slots carry
+   * whichever pair the mode calls for, and the readout over them follows suit —
+   * the speed there, or how far through the steps this is.
+   */
+  showTransport = () => {
+    const stepping = stepEl.checked
+    slowerEl.hidden = stepping
+    fasterEl.hidden = stepping
+    backEl.hidden = !stepping
+    nextEl.hidden = !stepping
+
+    // Each key is dimmed where it has nowhere left to go
+    slowerEl.disabled = speedIndex === 0
+    fasterEl.disabled = speedIndex === SPEEDS.length - 1
+    backEl.disabled = !stepTimer || stepIndex === 0
+    nextEl.disabled = !stepTimer || stepIndex >= steps.length - 1
+
+    speedEl.textContent = stepping ? stepCount() : `${Math.round(SPEEDS[speedIndex] * 100)}%`
+    speedEl.classList.toggle('off-tempo', !stepping && speedIndex !== FULL_SPEED)
   }
 
   /** Takes effect on the spot, mid-song included: JZZ rebases its clock on the new speed */
@@ -91,13 +117,13 @@ export function registerPlayerEvents() {
     if (player) {
       player.speed(SPEEDS[speedIndex])
     }
-    showSpeed()
+    showTransport()
   }
 
   slowerEl.addEventListener('click', () => setSpeed(speedIndex - 1))
   fasterEl.addEventListener('click', () => setSpeed(speedIndex + 1))
-  stepEl.addEventListener('change', showSpeed)
-  showSpeed()
+  stepEl.addEventListener('change', showTransport)
+  showTransport()
 
   /** Printed across the group's rule, so the key it was loaded with keeps its own label */
   const setFileName = (name) => {
@@ -113,6 +139,7 @@ export function registerPlayerEvents() {
       playEl.disabled = false
       stopEl.disabled = false
       setFileName(file.name)
+      showTransport()
       const seconds = Math.round(player.durationMS() / 1000)
       log.success(`Loaded MIDI file: ${file.name} (${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}, ${steps.length} steps)`)
     } catch (err) {
@@ -123,6 +150,7 @@ export function registerPlayerEvents() {
       playEl.disabled = true
       stopEl.disabled = true
       setFileName('')
+      showTransport()
       log.error(`Could not read MIDI file: ${file.name}`)
       console.error(err)
     }
@@ -141,6 +169,14 @@ export function registerPlayerEvents() {
   })
 
   stopEl.addEventListener('click', stopPlayback)
+}
+
+/** Where the stepping is up to, or what there is of it before it has begun */
+function stepCount() {
+  if (stepTimer) {
+    return `${stepIndex + 1} / ${steps.length}`
+  }
+  return steps.length ? `${steps.length} steps` : ''
 }
 
 /** The speed left over from the last session, as long as it is still one of ours */
@@ -212,6 +248,7 @@ function stopPlayback() {
     player.stop()
   }
   allNotesOff()
+  showTransport()
 }
 
 //////////////////////////////////////////
@@ -294,7 +331,31 @@ function startStepMode() {
   stepIndex = 0
   showStep()
   stepTimer = setInterval(checkStep, STEP_POLL_INTERVAL)
+  showTransport()
   log.info(`Step mode: play the lit notes to advance, ${steps.length} steps in total.`)
+}
+
+/**
+ * Move the step on or back by hand, rather than by playing it.
+ *
+ * Step mode is otherwise paced entirely by whoever is playing, which leaves nothing
+ * for a passage being worked on: a step is played wrong and there is no way back to
+ * it, or a step is to be looked at rather than played. The step lands exactly as the
+ * playing would have left it, so the one it moves to still waits to be played.
+ *
+ * @returns {boolean} whether there was a step to move to
+ */
+function moveStep(delta) {
+  if (!stepTimer) {
+    return false // not in step mode, so there is no step to move
+  }
+  const index = stepIndex + delta
+  if (index < 0 || index >= steps.length) {
+    return false // already at one end of the file
+  }
+  stepIndex = index
+  showStep()
+  return true
 }
 
 /**
@@ -353,6 +414,7 @@ function showStep() {
   showPreview(step, next)
   markFutures(step, next)
   updateStrayNotes()
+  showTransport()
 
   stepStartedAt = performance.now()
 }
