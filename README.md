@@ -64,7 +64,9 @@ reads once on startup, and again whenever you press **Import** under Configurati
 
 Until an instrument answers, the surface is shown unlit, with a note over it saying so. A
 guessed layout would light the wrong pads, so the app shows none rather than an instrument
-you do not have.
+you do not have. Plug the LinnStrument in and reload the page: it is found and read on its
+own. In a browser without Web MIDI the same note says that instead, since no instrument can
+be reached from it at all.
 
 What it reads: the note and row offsets, the split point and per-split transposition, left
 handed operation, the tempo, and your Note Lights colors. Change any of those on the

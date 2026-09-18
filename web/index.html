@@ -10,7 +10,7 @@
   
   <link rel="icon" type="image/x-icon" href="favicon.ico">
   <link href="./lib/bootstrap.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="./css/style.css?v=3" />
+  <link rel="stylesheet" href="./css/style.css?v=5" />
 
   <script>
     // Read before the libraries load, and kept for them: JZZ installs its own
@@ -27,20 +27,6 @@
 </head>
 
 <body>
-  <div id="webmidi-warning" class="alert alert-warning" role="alert" hidden>
-    <strong id="webmidi-warning-reason">This browser has no Web MIDI support.</strong>
-    Nothing here can reach your LinnStrument without it, so open the page in a
-    <a class="alert-link" target="_blank" rel="noopener" href="https://caniuse.com/midi">Web MIDI enabled browser</a>
-    such as Google Chrome or MS Edge.
-  </div>
-  <script>
-    // Raised here, not from the app's modules: a browser with no Web MIDI has nothing to run,
-    // so the warning must not depend on those modules loading and running first.
-    if (!window.hasNativeWebMidi) {
-      document.getElementById("webmidi-warning").hidden = false
-    }
-  </script>
-
   <div class="container py-3">
     <header>
       <div class="d-flex flex-column flex-md-row align-items-center pb-2 mb-3 border-bottom">
@@ -66,6 +52,34 @@
         <div class="col">
           <div class="instrument-panel">
             <div id="visualization"></div>
+            <!-- Over the surface until a layout has been read, since pads that are
+                 neither named nor lit otherwise read as something broken. It says why:
+                 either no LinnStrument answered, or this browser cannot reach one. -->
+            <div id="instrument-offline" class="instrument-offline" hidden>
+              <div id="offline-connect" class="instrument-offline-note">
+                <div class="instrument-offline-title">Connect LinnStrument</div>
+                <div class="instrument-offline-hint">
+                  Once you've connected it, reload this page.
+                </div>
+              </div>
+              <div id="offline-browser" class="instrument-offline-note instrument-offline-warning" role="alert" hidden>
+                <div class="instrument-offline-title"><span class="instrument-offline-icon" aria-hidden="true">&#9888;</span> <span id="offline-browser-reason">This browser has no Web MIDI support</span></div>
+                <div class="instrument-offline-hint">
+                  Nothing here can reach your LinnStrument without it. Open this page in a
+                  <a target="_blank" rel="noopener" href="https://caniuse.com/midi">Web MIDI enabled browser</a>
+                  such as Google Chrome or Microsoft Edge.
+                </div>
+              </div>
+            </div>
+            <script>
+              // Raised here, not from the app's modules: a browser with no Web MIDI has nothing
+              // to run, so the warning must not depend on those modules loading and running first.
+              if (!window.hasNativeWebMidi) {
+                document.getElementById("offline-connect").hidden = true
+                document.getElementById("offline-browser").hidden = false
+                document.getElementById("instrument-offline").hidden = false
+              }
+            </script>
           </div>
         </div>
       </div>

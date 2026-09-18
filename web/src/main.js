@@ -1,5 +1,5 @@
 import { log } from "./log.js";
-import { initConfig, resetConfig, saveConfig, updateSettingsInUI, refreshSaveState } from "./config.js";
+import { defaultConfig, initConfig, resetConfig, saveConfig, updateSettingsInUI, refreshSaveState } from "./config.js";
 import { resetGrid, getGridDict, getLitDict, getSideDicts, generateGrid, drawGrid, ledClass, devicePlayedColor, COLOR_FROM_DEVICE } from "./grid.js";
 import { ROWOFFSET_OCTAVECUSTOM, ROWOFFSET_GUITAR, splitNoteRanges, LEFT, RIGHT } from "./layout.js";
 import { assignSides } from "./parts.js";
@@ -58,17 +58,32 @@ window.ext = ext
 if (window.hasNativeWebMidi) {
   // Only enable() failing is MIDI being unavailable; a fault inside init() is not that
   WebMidi.enable().then(init, reportMidiRefused).catch(console.error);
+} else {
+  drawUnlitSurface()
 }
 
 /**
- * Raise the same warning bar as index.html does, with the reason swapped in: the API is
+ * Raise the same warning as index.html does, with the reason swapped in: the API is
  * there but would not start, e.g. the page is not on HTTPS or the permission was denied.
  */
 function reportMidiRefused(error) {
   console.error(error)
-  document.getElementById("webmidi-warning-reason").textContent =
-    `This browser supports Web MIDI, but refused it: ${error?.message ?? error}.`
-  document.getElementById("webmidi-warning").hidden = false
+  drawUnlitSurface()
+  document.getElementById("offline-browser-reason").textContent =
+    `This browser refused Web MIDI: ${error?.message ?? error}`
+  document.getElementById("offline-connect").hidden = true
+  document.getElementById("offline-browser").hidden = false
+}
+
+/**
+ * With no MIDI to start the app on, still draw the pads, unlit, so the warning over
+ * them sits on the instrument rather than on an empty strip. Nothing else runs.
+ */
+function drawUnlitSurface() {
+  ext.config = { ...defaultConfig }
+  ext.grid = generateGrid(ext.config)
+  drawGrid(ext.grid)
+  window.addEventListener("resize", debounce(() => drawGrid(ext.grid), 200))
 }
 
 // Function triggered when WEBMIDI.js is ready

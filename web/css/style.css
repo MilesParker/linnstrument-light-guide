@@ -21,6 +21,8 @@
   /* Playing surface, and the pad material the keys share with it */
   --ls-surface: #bfc1bc;
   --ls-pad: #d8dad4;
+  /* The same pads with nothing behind them, before an instrument has been read */
+  --ls-pad-unlit: #caccc6;
   --ls-pad-print: #43463f;
   --ls-radius: 0;
 
@@ -189,19 +191,6 @@ nav a {
   padding: 0.3rem 0.6rem;
 }
 
-/* Web MIDI warning: a bar across the very top of the page, shown only when the browser
-   has no MIDI to give us. Amber on the dark chassis, so it reads as a panel warning. */
-#webmidi-warning {
-  --bs-alert-color: #f0c36a;
-  --bs-alert-bg: #241d12;
-  --bs-alert-border-color: var(--ls-edge);
-  --bs-alert-link-color: #ffd98a;
-  --bs-alert-margin-bottom: 0;
-  --bs-alert-padding-y: 0.6rem;
-  font-size: 0.9em;
-  text-align: center;
-}
-
 .card {
   --bs-card-bg: var(--ls-panel);
   --bs-card-cap-bg: var(--ls-panel-raised);
@@ -360,6 +349,7 @@ select, input {
  * Playing surface
  * ------------------------------------------------------------------------ */
 .instrument-panel {
+  position: relative;
   background: var(--ls-surface);
   border-radius: var(--ls-radius);
   padding: 6px;
@@ -429,19 +419,81 @@ select, input {
   flex-direction: column;
 }
 
-#visualization:not(.note-lights) .note-name-C {
+/* Fallback for an instrument whose note lights could not be read: the app tints the
+   pads by note name itself, as it did before it could read them */
+#visualization.note-names .note-name-C {
   background-color: #c0d6eb;
 }
-#visualization:not(.note-lights) .note-name-D,
-#visualization:not(.note-lights) .note-name-E,
-#visualization:not(.note-lights) .note-name-F,
-#visualization:not(.note-lights) .note-name-G,
-#visualization:not(.note-lights) .note-name-A,
-#visualization:not(.note-lights) .note-name-B
+#visualization.note-names .note-name-D,
+#visualization.note-names .note-name-E,
+#visualization.note-names .note-name-F,
+#visualization.note-names .note-name-G,
+#visualization.note-names .note-name-A,
+#visualization.note-names .note-name-B
  {
   background-color: #d4f0ce;
 }
-#visualization .note-name-invalid {
+
+/* No instrument read yet. Which note a pad plays, and what it lights for, is the
+   instrument's to say, so until one answers the surface is left unlit rather than
+   lit from a guess at the layout. */
+#visualization.offline .cell {
+  background: var(--ls-pad-unlit);
+}
+
+/* Said over the surface, since an unlit one otherwise reads as a fault. It goes as
+   soon as an instrument is read. */
+.instrument-offline {
+  position: absolute;
+  inset: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  text-align: center;
+  background: rgb(191 193 188 / 0.66);
+  color: var(--ls-pad-print);
+  font-family: var(--ls-font-print);
+}
+/* Before the grid is drawn, or with no grid at all, the note still needs room */
+.instrument-panel:has(#visualization:empty) {
+  min-height: 14rem;
+}
+.instrument-offline-note {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  max-width: 40rem;
+}
+.instrument-offline-title {
+  font-size: 1.75rem;
+  font-weight: var(--ls-print-weight);
+  letter-spacing: var(--ls-print-tracking);
+  text-transform: uppercase;
+  line-height: 1.15;
+}
+.instrument-offline-hint {
+  font-size: 1.15rem;
+}
+/* The browser cannot reach the instrument at all, which is not a step still to take
+   but a dead end: a panel warning plate, amber on the chassis, rather than print on
+   the surface. */
+.instrument-offline-warning {
+  padding: 1.1rem 1.6rem;
+  background: #241d12;
+  border: 1px solid #f0c36a;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.45);
+  color: #f0c36a;
+}
+.instrument-offline-warning a {
+  color: #ffd98a;
+}
+.instrument-offline-icon {
+  font-size: 1.2em;
+}
+
+#visualization:not(.offline) .note-name-invalid {
   background-image: linear-gradient(135deg, rgba(0, 0, 0, 0.05) 25%, transparent 25%, transparent 50%, rgba(0, 0, 0, 0.05) 50%, rgba(0, 0, 0, 0.05) 75%, transparent 75%, transparent 100%);
   background-size: 16px 16px;
 }

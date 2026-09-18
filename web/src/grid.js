@@ -126,8 +126,12 @@ export function drawGrid(grid) {
   const layout = window.ext.deviceLayout
   const rightSplitStartX = layout && layout.splitActive ? layout.splitPoint - 1 : -1
   const v = document.getElementById('visualization')
-  // Note lights read from the device replace the built in note name tinting
-  v.className = layout && window.ext.noteLights ? 'note-lights' : ''
+  // Until a layout has been read the pads stand for no particular instrument, so the
+  // surface is left unlit rather than lit from a guess. Note lights read from the device
+  // replace the built in note name tinting wherever they could be read.
+  const offline = !layout
+  v.className = offline ? 'offline' : window.ext.noteLights ? 'note-lights' : 'note-names'
+  document.getElementById('instrument-offline').hidden = !offline
   v.innerHTML = ''
   const cols = grid[0].length
   const rows = grid.length
@@ -149,6 +153,11 @@ export function drawGrid(grid) {
         const note = new Note(noteNumber)
         noteName = note.identifier
         noteClass = `${note.name}${note.accidental ? '-sharp' : ''}`
+      }
+
+      // An unread instrument's pads say nothing, not even which note they would play
+      if (offline) {
+        noteName = ''
       }
 
       const cellEl = document.createElement('span')
