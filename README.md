@@ -31,6 +31,12 @@ operation, note light colors — so the pad lit on screen is the pad under your 
 knows which shapes the LinnStrument's sensor can read at once, and places a chord so that a
 step never waits on a note the instrument was never going to send.
 
+### Contributors
+
+Simon Heimler wrote the original implementation.
+Miles Parker contributed additional features, see RELEASE_NOTES.md for details.
+
+
 > The original README, describing this project as the Light Guide bridge it began as, is kept
 > verbatim at [OLD_README.md](./OLD_README.md).
 
@@ -55,6 +61,10 @@ that from the instrument itself, so there is nothing to type in.
 Pick your LinnStrument under **Input: Instrument** and **Output: Instrument**. Both are
 needed: the app asks over the output port and the answers come back on the input port. It
 reads once on startup, and again whenever you press **Import** under Configuration.
+
+Until an instrument answers, the surface is shown unlit, with a note over it saying so. A
+guessed layout would light the wrong pads, so the app shows none rather than an instrument
+you do not have.
 
 What it reads: the note and row offsets, the split point and per-split transposition, left
 handed operation, the tempo, and your Note Lights colors. Change any of those on the
