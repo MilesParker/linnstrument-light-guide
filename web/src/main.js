@@ -550,33 +550,41 @@ export function highlightVisualization(noteNumber, color, type = "played", big =
   const noteCoords = litPads(noteNumber, side)
   if (noteCoords) {
     for (const noteCoord of noteCoords) {
-      const x = noteCoord[0]
-      const y = noteCoord[1]
-      const padColor = color === COLOR_FROM_DEVICE ? devicePlayedColor(x) : color
-
-      // Clear first either way, so recoloring a lit pad replaces its LED
-      // rather than leaving a second one stacked underneath
-      const lit = document.getElementById(`highlight-${type}-${x}-${y}`)
-      if (lit) {
-        lit.parentNode.removeChild(lit);
-      }
-
-      if (padColor !== 0) {
-        const cell = document.getElementById(`cell-${x}-${y}`)
-        const size = cell.offsetWidth
-
-        const highlightEl = document.createElement('span')
-        highlightEl.id = `highlight-${type}-${x}-${y}`
-        highlightEl.className = `highlight highlight-${type} ${ledClass(padColor)}`
-        if (big) {
-          highlightEl.style = `height: ${size - 6}px; width: ${size - 6}px; margin-left: ${3}px;`
-        } else {
-          highlightEl.style = `height: ${size / 2}px; width: ${size / 2}px; margin-left: ${size / 4}px;`
-        }
-
-        cell.prepend(highlightEl)
-      }
+      highlightVisualizationXY(noteCoord[0], noteCoord[1], color, type, big)
     }
+  }
+}
+
+/**
+ * Highlight one pad on web visualization by x / y coordinates and color
+ */
+export function highlightVisualizationXY(x, y, color, type = "played", big = false) {
+  const padColor = color === COLOR_FROM_DEVICE ? devicePlayedColor(x) : color
+
+  // Clear first either way, so recoloring a lit pad replaces its LED
+  // rather than leaving a second one stacked underneath
+  const lit = document.getElementById(`highlight-${type}-${x}-${y}`)
+  if (lit) {
+    lit.parentNode.removeChild(lit);
+  }
+
+  if (padColor !== 0) {
+    const cell = document.getElementById(`cell-${x}-${y}`)
+    if (!cell) {
+      return
+    }
+    const size = cell.offsetWidth
+
+    const highlightEl = document.createElement('span')
+    highlightEl.id = `highlight-${type}-${x}-${y}`
+    highlightEl.className = `highlight highlight-${type} ${ledClass(padColor)}`
+    if (big) {
+      highlightEl.style = `height: ${size - 6}px; width: ${size - 6}px; margin-left: ${3}px;`
+    } else {
+      highlightEl.style = `height: ${size / 2}px; width: ${size / 2}px; margin-left: ${size / 4}px;`
+    }
+
+    cell.prepend(highlightEl)
   }
 }
 

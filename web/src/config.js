@@ -43,6 +43,8 @@ export const defaultConfig = {
   stepNextColor: 3,
   /** Color for a pad held that the step has no note for. Off leaves a stray note unmarked. */
   stepErrorColor: 1,
+  /** How long a stray note has to be held before it is marked, so lifting the chord just played is not (in ms) */
+  stepErrorDelay: 400,
   /** Outline lit pads on the visualization by what becomes of them on the next step */
   stepFutureOutlines: 1,
   showFeedback: 1,
@@ -129,6 +131,7 @@ export function updateSettingsInUI(config) {
   setField('stepRepeatColor', config.stepRepeatColor)
   setField('stepNextColor', config.stepNextColor)
   setField('stepErrorColor', config.stepErrorColor)
+  setField('stepErrorDelay', config.stepErrorDelay)
   setField('stepFutureOutlines', config.stepFutureOutlines)
   setField('linnStrumentSize', config.linnStrumentSize)
   setField('delayedNoteThreshold', config.delayedNoteThreshold)
@@ -157,6 +160,7 @@ function configFromUI() {
     stepRepeatColor: parseInt(document.getElementById("stepRepeatColor").value),
     stepNextColor: parseInt(document.getElementById("stepNextColor").value),
     stepErrorColor: parseInt(document.getElementById("stepErrorColor").value),
+    stepErrorDelay: parseInt(document.getElementById("stepErrorDelay").value),
     stepFutureOutlines: parseInt(document.getElementById("stepFutureOutlines").value),
     linnStrumentSize: parseInt(document.getElementById("linnStrumentSize").value),
     delayedNoteThreshold: parseInt(document.getElementById("delayedNoteThreshold").value),

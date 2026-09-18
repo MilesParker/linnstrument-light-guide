@@ -8,7 +8,7 @@
  * time and waits until that chord has actually been played (see buildSteps).
  */
 
-import { ext, guideNoteOn, guideNoteOff, highlightInstrument, highlightVisualization, recolorGuideNote, refreshPartSides, litPads, layoutPads, setPadOverrides } from "./main.js"
+import { ext, guideNoteOn, guideNoteOff, highlightInstrument, highlightInstrumentXY, highlightVisualization, highlightVisualizationXY, recolorGuideNote, refreshPartSides, litPads, layoutPads, setPadOverrides } from "./main.js"
 import { COLOR_OFF } from "./grid.js"
 import { LEFT, RIGHT } from "./layout.js"
 import { collectParts } from "./parts.js"
@@ -44,8 +44,19 @@ let speedIndex = FULL_SPEED
 const activeNotes = new Map()
 /** Notes lit only as a look ahead to the next step, note -> { color, side } */
 const previewNotes = new Map()
-/** Notes lit as held when the step does not want them, note -> the side lit for it */
+/**
+ * Notes held when the step does not want them, note -> { pads, ringed }: the pads
+ * lit for the note, and whether those are known to be under the finger
+ */
 const strayNotes = new Map()
+/** Notes held that the step does not want, note -> when that started, for errorDelay */
+const straySince = new Map()
+/** Pads lit around the stray notes, "x,y" -> [x, y], so there is something to see */
+const strayRing = new Map()
+/** Where the current step lit each of its notes, note -> pads */
+let litThisStep = new Map()
+/** Where the step before lit each of its notes, which is where a finger left behind is */
+let litLastStep = new Map()
 
 /** Chords to step through, rebuilt for each loaded file */
 let steps = []
@@ -387,6 +398,8 @@ function showStep() {
   }
 
   setPadOverrides(overrides)
+  litLastStep = litThisStep
+  litThisStep = new Map()
 
   for (const note of step.notes) {
     // A note the sensor has no room for is left dark rather than lit on a pad that
@@ -396,6 +409,7 @@ function showStep() {
 
     const color = stepColor(note, step, next)
     const side = sideOf(step.parts.get(note))
+    litThisStep.set(note, litPads(note, side) ?? [])
     if (!activeNotes.has(note)) {
       lightOn(note, 1, 100, color, side) // note starts on this step, or has moved pad
     } else if (step.onsets.includes(note)) {
@@ -590,6 +604,17 @@ function errorColor() {
 }
 
 /**
+ * How long a note has to be held after the step stops wanting it before it shows as
+ * wrongly held. A step turns the moment its last note goes down, with every finger of
+ * the chord still on its pad, so without this each step would open with the chord
+ * just played lit as a mistake while it is being lifted.
+ */
+function errorDelay() {
+  const delay = ext.config.stepErrorDelay
+  return Number.isFinite(delay) && delay >= 0 ? delay : 400
+}
+
+/**
  * The color a note of the current step is lit with: what to do with the pad now,
  * together with what becomes of it when the step turns. A pad needs both at once,
  * and it carries them from the moment it lights rather than changing under the
@@ -694,37 +719,128 @@ function clearFutureMarks() {
  * where the next step strikes that note again, the held finger blocks the press that
  * would advance, which just looks like a step that will not move on.
  *
- * Run on every poll, since what is held changes while a step is being worked out.
+ * The pad under the finger cannot show it on the instrument, though: the firmware
+ * paints a touched pad in its played color over anything sent to it. So the pads
+ * around it are lit as well, leaving the held pad as the dark one in a ring of the
+ * error color. The instrument reports the note and not the pad, so this is only done
+ * for a note the step before lit, which is where the finger holding it went.
+ *
+ * Nothing shows until the note has been held for errorDelay, so lifting the chord
+ * just played is not taken for a mistake. Run on every poll, since what is held
+ * changes while a step is being worked out, and so the delay runs out on its own.
  */
 function updateStrayNotes() {
   const color = errorColor()
   const step = steps[stepIndex]
   const stray = new Set()
+  const now = performance.now()
 
+  const unwanted = new Set()
   if (step && color !== COLOR_OFF) {
     for (const note of ext.heldNotes) {
       if (!step.notes.includes(note)) {
-        stray.add(note)
+        unwanted.add(note)
       }
     }
+  }
+  for (const note of [...straySince.keys()]) {
+    if (!unwanted.has(note)) straySince.delete(note)
+  }
+  for (const note of unwanted) {
+    if (!straySince.has(note)) straySince.set(note, now)
+    if (now - straySince.get(note) >= errorDelay()) stray.add(note)
   }
 
   for (const note of stray) {
     if (strayNotes.has(note)) continue
-    // Over the look ahead's own pad where there is one, so it is replaced rather
-    // than left lit somewhere else for the same note
-    const side = previewNotes.get(note)?.side ?? null
-    strayNotes.set(note, side)
-    highlightInstrument(note, color, side)
-    highlightVisualization(note, color, 'error', true, side)
+    // A note the last step lit is under the finger it was lit for. Anything else
+    // could be on any of its pads, so it gets no ring: the one the layout lights
+    // stands in for it on the visualization, as the played note does.
+    const left = litLastStep.get(note)
+    const pads = left ?? litPads(note, previewNotes.get(note)?.side ?? null) ?? []
+    strayNotes.set(note, { pads, ringed: !!left })
+    for (const [x, y] of pads) {
+      highlightInstrumentXY(x, y, color)
+      highlightVisualizationXY(x, y, color, 'error', true)
+    }
   }
-  for (const [note, side] of [...strayNotes]) {
+  for (const [note, { pads }] of [...strayNotes]) {
     if (stray.has(note)) continue
     strayNotes.delete(note)
-    // Back to whatever the pad was showing underneath, which is a look ahead or nothing
-    highlightInstrument(note, previewNotes.get(note)?.color ?? 0, side)
-    highlightVisualization(note, 0, 'error', false, side)
+    for (const [x, y] of pads) {
+      restorePad(x, y)
+    }
   }
+
+  updateStrayRing(step, color)
+}
+
+/**
+ * Light the pads around each stray note, leaving out any pad this step or the look
+ * ahead lights, since those are telling the hand where to go, and the stray pads
+ * themselves.
+ */
+function updateStrayRing(step, color) {
+  const want = new Map()
+
+  if ([...strayNotes.values()].some(({ ringed }) => ringed)) {
+    const skip = new Set()
+    for (const { pads } of strayNotes.values()) {
+      for (const pad of pads) skip.add(padKey(pad))
+    }
+    for (const note of step.notes) {
+      for (const pad of litPads(note, sideOf(step.parts.get(note))) ?? []) skip.add(padKey(pad))
+    }
+    for (const [x, y] of appLitPads()) skip.add(padKey([x, y]))
+
+    const columns = ext.config.linnStrumentSize / 8
+    for (const { pads, ringed } of strayNotes.values()) {
+      if (!ringed) continue
+      for (const [cx, cy] of pads) {
+        for (let dx = -1; dx <= 1; dx++) {
+          for (let dy = -1; dy <= 1; dy++) {
+            const x = cx + dx
+            const y = cy + dy
+            if (x < 0 || x >= columns || y < 0 || y > 7) continue
+            const key = padKey([x, y])
+            if (!skip.has(key)) want.set(key, [x, y])
+          }
+        }
+      }
+    }
+  }
+
+  for (const [key, [x, y]] of want) {
+    if (strayRing.has(key)) continue
+    strayRing.set(key, [x, y])
+    highlightInstrumentXY(x, y, color) // the visualization can show the held pad itself
+  }
+  for (const [key, [x, y]] of [...strayRing]) {
+    if (want.has(key)) continue
+    strayRing.delete(key)
+    restorePad(x, y)
+  }
+}
+
+/** Every pad the guide or the look ahead has lit, with the color it is lit in */
+function* appLitPads() {
+  for (const [note, { color, side }] of [...activeNotes, ...previewNotes]) {
+    for (const [x, y] of litPads(note, side) ?? []) yield [x, y, color]
+  }
+}
+
+/** Put a pad back to whatever the guide or the look ahead has on it, or dark */
+function restorePad(x, y) {
+  let color = 0
+  for (const [px, py, lit] of appLitPads()) {
+    if (px === x && py === y) color = lit
+  }
+  highlightInstrumentXY(x, y, color)
+  highlightVisualizationXY(x, y, 0, 'error')
+}
+
+function padKey([x, y]) {
+  return `${x},${y}`
 }
 
 /**
@@ -732,10 +848,13 @@ function updateStrayNotes() {
  * change, which repaints every pad it wants from scratch straight afterwards.
  */
 function clearStrayNotes() {
-  for (const [note, side] of [...strayNotes]) {
-    strayNotes.delete(note)
-    highlightInstrument(note, 0, side)
-    highlightVisualization(note, 0, 'error', false, side)
+  const pads = [...[...strayNotes.values()].flatMap(({ pads }) => pads), ...strayRing.values()]
+  strayNotes.clear()
+  strayRing.clear()
+  straySince.clear() // the time starts again from the step that no longer wants the note
+  for (const [x, y] of pads) {
+    highlightInstrumentXY(x, y, 0)
+    highlightVisualizationXY(x, y, 0, 'error')
   }
 }
 
@@ -841,8 +960,8 @@ export function refreshInstrumentLights() {
   for (const [note, { color, side }] of [...activeNotes, ...previewNotes]) {
     highlightInstrument(note, color, side)
   }
-  for (const [note, side] of strayNotes) {
-    highlightInstrument(note, errorColor(), side)
+  for (const [x, y] of [...[...strayNotes.values()].flatMap(({ pads }) => pads), ...strayRing.values()]) {
+    highlightInstrumentXY(x, y, errorColor())
   }
 }
 
@@ -853,6 +972,8 @@ function allNotesOff() {
   }
   clearPreview()
   clearStrayNotes()
+  litThisStep = new Map()
+  litLastStep = new Map()
   clearFutureMarks()
   // Last, so everything above puts out the pad it was actually lit on
   setPadOverrides(null)

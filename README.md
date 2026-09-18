@@ -131,7 +131,7 @@ Each lit pad says what to do with it, not just that it is part of the chord. The
 | **Orange** — Step: Held Note Color | Do not lift it. Either it is already down, or it carries on past this step. |
 | **Lime** — Step: Repeat Note Color | The next step strikes this note again, so let the pad come up and play it afresh when the step turns. |
 | **Green** — Step: Next Step Color | A look ahead at what the next step will strike. Not to be played yet; the step does not wait for it and it does not count against you. |
-| **Red** — Step: Wrongly Held Color | You are holding a pad this step has no note for. Lift it. |
+| **Red** — Step: Wrongly Held Color | You have kept holding a pad this step has no note for. Lift it. It waits a moment before showing (Step: Wrongly Held Delay, 400 ms to begin with), so lifting the chord you just played does not count. The LinnStrument shows its own played color under a finger, so for a note left held from the step before, the pads around it light red instead: lift the one in the middle of the ring. |
 
 Every one of these can be set to another color, or switched off to fall back to how step mode
 looked without it.

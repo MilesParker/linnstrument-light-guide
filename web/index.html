@@ -221,7 +221,7 @@
                 </select>
 
                 <label for="stepErrorColor" class="form-label">Step: Wrongly Held Color</label>
-                <select id="stepErrorColor" class="form-select" data-bs-toggle="tooltip" data-bs-placement="right" title="Step mode only. Lights a pad you are holding that the current step has no note for, so you can see what to lift. The LinnStrument lights pads you touch with its own COLOR / PLAYED, so turn that off to see this.">
+                <select id="stepErrorColor" class="form-select" data-bs-toggle="tooltip" data-bs-placement="right" title="Step mode only. Marks a pad you are still holding that the current step has no note for, so you can see what to lift. The LinnStrument always shows its own played color under a finger, so on the instrument the pads around it light up instead, leaving the one to lift dark in the middle. That is only done for a note the step before asked for, as it is the only pad the app knows your finger is on.">
                   <option value="7">Off</option>
                   <option value="1">Red</option>
                   <option value="2">Yellow</option>
@@ -234,6 +234,9 @@
                   <option value="10">Lime</option>
                   <option value="11">Pink</option>
                 </select>
+
+                <label for="stepErrorDelay" class="form-label">Step: Wrongly Held Delay (ms)</label>
+                <input id="stepErrorDelay" class="form-control text-end" type="text" placeholder="400" data-bs-toggle="tooltip" data-bs-placement="right" title="Step mode only. How long a pad has to stay held after the step stops wanting it before it is marked as wrongly held. A step moves on the moment its last note goes down, while the whole chord is still under your fingers, so without a pause every step would begin with the chord you just played marked as a mistake. Raise it if lifting a chord normally still sets it off; lower it if the warning comes too late to be useful. 0 marks it straight away.">
 
                 <label for="stepFutureOutlines" class="form-label">Step: Next Step Outlines</label>
                 <select id="stepFutureOutlines" class="form-select" data-bs-toggle="tooltip" data-bs-placement="right" title="Step mode only, visualization only. Outlines each lit pad that is held on into the next step. This is the one thing the colors leave paired: a note already down that ends with this step carries the same hold color as one that carries on past it.">
